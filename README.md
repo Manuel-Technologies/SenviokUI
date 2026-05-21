@@ -1,35 +1,99 @@
-# Senvio Mail Relay
+# SenviokUI Frontend
 
-Senvio is a fast, secure, and reliable transactional mail relay infrastructure tailored for developers. It offers a developer-first email API with queuing, automatic retries, and real-time logs.
+This repository contains the frontend implementation for `SenviokUI`, a modern React + Vite UI project built with a terminal-style dashboard aesthetic.
 
-## Features
+## Repository Overview
 
-- **Async Queue Processing**: Emails are queued and processed asynchronously with automatic retries and exponential backoff.
-- **RESTful API**: Easily integrate with any language or framework using simple HTTP requests.
-- **API Key Authentication**: Secure, hashed API keys with per-user isolation.
-- **Real-Time Logs**: Track every email — queued, sent, or failed.
+- **Framework**: React 18
+- **Bundler**: Vite
+- **Styling**: Tailwind CSS + Tailwind animations
+- **UI Primitives**: Radix UI
+- **State & Data**: React Router, React Query
+- **Testing**: Vitest
 
-## Quick Start
+## Key Features
+
+- Responsive dashboard UI with terminal-inspired components
+- Reusable component library under `src/components/ui`
+- Auth context and protected route handling
+- Modern form handling and validation
+- Charting, tables, modals, alerts, notifications, and mobile-friendly layouts
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 20+ or compatible runtime
+- npm installed
+- Optional: `pnpm` or `bun` for alternative package management
+
+### Install dependencies
 
 ```bash
-curl -X POST https://api.senvio.dev/send-email \
-  -H "Authorization: Bearer sv_live_xxxxx" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "to": "user@example.com",
-    "subject": "Hello from Senvio",
-    "body": "<h1>Welcome!</h1>"
-  }'
+cd c:/Users/NWCS/Desktop/senviokFrontend
+npm install
 ```
 
-## Dashboard & Setup
+### Run development server
 
-Senvio comes with a built-in highly stylized dashboard mimicking terminal aesthetics to manage your API keys, monitor email queues, and check delivery status.
+```bash
+npm run dev
+```
 
-1. Clone the repository.
-2. Run `npm install`.
-3. Create your `.env` file (see `.env.example`).
-4. Start the frontend development server: `npm run dev`.
+Open the local URL shown in the terminal to preview the application.
 
-## Modern Terminal UI
-Senvio's UI is designed to give you a modern, terminal hacker aesthetic with neon green styling and space-mono typography, reducing eye strain and putting performance first.
+### Build for production
+
+```bash
+npm run build
+```
+
+### Preview production build
+
+```bash
+npm run preview
+```
+
+### Run tests
+
+```bash
+npm test
+```
+
+## Project Structure
+
+- `src/main.tsx` – frontend application entrypoint
+- `src/App.tsx` – main app router and layout
+- `src/pages` – page views and routes
+- `src/components` – reusable components and UI primitives
+- `src/contexts` – app-level React contexts
+- `src/hooks` – custom React hooks
+- `src/lib` – shared utilities and helpers
+- `public` – static assets served by Vite
+
+## Workflow
+
+1. Create or update components under `src/components`
+2. Add pages in `src/pages` and wire routes in `App.tsx`
+3. Use `npm run dev` for local development
+4. Run `npm run build` before deploying
+
+## GitHub Repository
+
+This repository is configured to push to `https://github.com/Manuel-Technologies/SenviokUI.git`.
+
+## Notes
+
+- `.gitignore` excludes `node_modules`, `dist`, build artifacts, logs, and editor settings.
+- The current frontend is configured as a private package with `type: module`.
+- If your environment requires a `.env` file, create it from any project `.env.example` or add environment variables as needed.
+
+## Contributing
+
+- Make feature branches from `main`
+- Open pull requests with clear descriptions
+- Add tests for new logic where appropriate
+
+## License
+
+This repository does not include a license file. Add one if required for your project.
