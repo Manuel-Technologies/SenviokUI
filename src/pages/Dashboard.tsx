@@ -1,0 +1,430 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
+import { Mail, Key, LogOut, Copy, Plus, Trash2, Send, RefreshCw, BookOpen } from "lucide-react";
+import { Logo } from "@/components/Logo";
+
+interface ApiKey {
+  id: string;
+  name: string;
+  key_prefix: string;
+  created_at: string;
+  last_used_at: string | null;
+}
+
+interface EmailLog {
+  id: string;
+  recipient: string;
+  subject: string;
+  status: string;
+  created_at: string;
+  error_message: string | null;
+}
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5033";
+
+export default function Dashboard() {
+  const { user, session, signOut } = useAuth();
+  const navigate = useNavigate();
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
+  const [emails, setEmails] = useState<EmailLog[]>([]);
+  const [newKeyName, setNewKeyName] = useState("Default");
+  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [profile, setProfile] = useState<{ startup_name: string | null; startup_slug: string | null } | null>(null);
+
+  // Send test email form
+  const [testTo, setTestTo] = useState("");
+  const [testSubject, setTestSubject] = useState("Test from Senviok");
+  const [testBody, setTestBody] = useState("<h1>Hello!</h1><p>This is a test email from Senviok.</p>");
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setProfile({
+        startup_name: user.name || "My Workspace",
+        startup_slug: user.tenantId,
+      });
+      fetchApiKeys();
+      fetchEmails();
+    }
+  }, [user]);
+
+  const fetchApiKeys = async () => {
+    if (!session?.access_token) return;
+    try {
+      const res = await fetch(`${API_URL}/v1/api-keys`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to fetch API keys");
+      const data = await res.json();
+      const mapped = (data.data || []).map((k: any) => ({
+        id: k.id,
+        name: k.name,
+        key_prefix: k.prefix,
+        created_at: k.createdAt,
+        last_used_at: k.lastUsedAt || null,
+      }));
+      setApiKeys(mapped);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load API keys");
+    }
+  };
+
+  const fetchEmails = async () => {
+    if (!session?.access_token) return;
+    try {
+      const res = await fetch(`${API_URL}/v1/analytics/logs`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to fetch email logs");
+      const data = await res.json();
+      const mapped = (data.logs || []).map((l: any) => ({
+        id: l.id,
+        recipient: l.toAddress,
+        subject: l.subject || "",
+        status: l.status,
+        created_at: l.createdAt,
+        error_message: l.textBody || null,
+      }));
+      setEmails(mapped);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load email logs");
+    }
+  };
+
+  const generateApiKey = async () => {
+    if (!session?.access_token) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/v1/api-keys`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ Name: newKeyName }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.Message || errData.message || "Failed to generate API key");
+      }
+
+      const data = await res.json();
+      setGeneratedKey(data.token);
+      setNewKeyName("Default");
+      fetchApiKeys();
+      toast.success("API key generated!");
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+    setLoading(false);
+  };
+
+  const deleteApiKey = async (id: string) => {
+    if (!session?.access_token) return;
+    try {
+      const res = await fetch(`${API_URL}/v1/api-keys/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to delete API key");
+      fetchApiKeys();
+      toast.success("API key deleted");
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Copied to clipboard!");
+  };
+
+  const sendTestEmail = async () => {
+    if (!testTo) {
+      toast.error("Recipient is required");
+      return;
+    }
+    if (!session?.access_token || !user) return;
+    setSending(true);
+    try {
+      const res = await fetch(`${API_URL}/v1/emails`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          from: `noreply@${user.tenantId}.senviok.email`,
+          fromName: "Test Sender",
+          to: testTo,
+          subject: testSubject,
+          html: testBody,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.Message || errData.message || "Failed to queue email");
+      }
+
+      toast.success("Email queued successfully!");
+      setTestTo("");
+      fetchEmails();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to queue email");
+    }
+    setSending(false);
+  };
+
+  const statusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "sent":
+      case "delivered":
+        return "bg-green-500/15 text-green-500 border-green-500/30";
+      case "failed":
+        return "bg-red-500/15 text-red-500 border-red-500/30";
+      case "processing":
+      case "queued":
+        return "bg-yellow-500/15 text-yellow-500 border-yellow-500/30";
+      default:
+        return "bg-muted text-muted-foreground";
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <nav className="border-b border-border/50 bg-background/80 backdrop-blur-sm sticky top-0 z-50">
+        <div className="container mx-auto flex items-center justify-between h-16 px-4">
+          <Logo size="sm" />
+          <div className="flex items-center gap-3">
+            <Button variant="outline" size="sm" onClick={() => navigate("/docs")}>
+              <BookOpen className="h-4 w-4 mr-2" /> API Docs
+            </Button>
+            <span className="text-sm text-muted-foreground hidden sm:inline">{user?.email}</span>
+            <Button variant="ghost" size="sm" onClick={() => { signOut(); navigate("/"); }}>
+              <LogOut className="h-4 w-4 mr-2" /> Sign Out
+            </Button>
+          </div>
+        </div>
+      </nav>
+
+      <div className="container mx-auto px-4 py-8 max-w-5xl">
+        <div className="flex items-end justify-between flex-wrap gap-4 mb-8">
+          <div>
+            <h1 className="text-3xl font-bold">
+              {profile?.startup_name ? `${profile.startup_name}'s Workspace` : "Dashboard"}
+            </h1>
+            {profile?.startup_slug && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Tenant ID: <code className="font-mono text-foreground">{profile.startup_slug}</code>
+              </p>
+            )}
+          </div>
+          {profile?.startup_slug && (
+            <Card className="glass-card border-primary/30 bg-primary/5">
+              <CardContent className="py-4 px-5 flex items-center gap-3">
+                <Mail className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Sending address</p>
+                  <code className="font-mono text-sm text-primary">
+                    noreply@{profile.startup_slug}.senviok.email
+                  </code>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => copyToClipboard(`noreply@${profile.startup_slug}.senviok.email`)}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        <Tabs defaultValue="keys" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="keys">
+              <Key className="h-4 w-4 mr-2" /> API Keys
+            </TabsTrigger>
+            <TabsTrigger value="logs">
+              <Mail className="h-4 w-4 mr-2" /> Email Logs
+            </TabsTrigger>
+            <TabsTrigger value="send">
+              <Send className="h-4 w-4 mr-2" /> Send Test
+            </TabsTrigger>
+          </TabsList>
+
+          {/* API Keys Tab */}
+          <TabsContent value="keys" className="space-y-4">
+            {/* Generated key banner */}
+            {generatedKey && (
+              <Card className="border-primary/50 bg-primary/5">
+                <CardContent className="pt-6">
+                  <p className="text-sm font-medium mb-2 text-primary">🔑 Your new API key (copy it now — it won't be shown again):</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 bg-card rounded px-3 py-2 text-sm font-mono break-all border border-border">
+                      {generatedKey}
+                    </code>
+                    <Button size="sm" variant="outline" onClick={() => copyToClipboard(generatedKey)}>
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <Button variant="ghost" size="sm" className="mt-2" onClick={() => setGeneratedKey(null)}>
+                    Dismiss
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card className="glass-card">
+              <CardHeader>
+                <CardTitle>Generate API Key</CardTitle>
+                <CardDescription>Create a new key to authenticate your API requests</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex gap-3">
+                  <Input
+                    placeholder="Key name"
+                    value={newKeyName}
+                    onChange={(e) => setNewKeyName(e.target.value)}
+                    className="max-w-xs"
+                  />
+                  <Button onClick={generateApiKey} disabled={loading}>
+                    <Plus className="h-4 w-4 mr-2" /> Generate
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="glass-card">
+              <CardHeader>
+                <CardTitle>Your API Keys</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {apiKeys.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">No API keys yet. Generate one above.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {apiKeys.map((key) => (
+                      <div key={key.id} className="flex items-center justify-between py-3 px-4 rounded-lg bg-muted/50 border border-border/50">
+                        <div>
+                          <p className="font-medium text-sm">{key.name}</p>
+                          <p className="text-xs text-muted-foreground font-mono">{key.key_prefix}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Created {new Date(key.created_at).toLocaleDateString()}
+                            {key.last_used_at && ` · Last used ${new Date(key.last_used_at).toLocaleDateString()}`}
+                          </p>
+                        </div>
+                        <Button variant="ghost" size="sm" onClick={() => deleteApiKey(key.id)} className="text-destructive hover:text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Email Logs Tab */}
+          <TabsContent value="logs">
+            <Card className="glass-card">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Email Logs</CardTitle>
+                  <CardDescription>Track the status of all your sent emails</CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={fetchEmails}>
+                  <RefreshCw className="h-4 w-4 mr-2" /> Refresh
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {emails.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">No emails sent yet.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border">
+                          <th className="text-left py-3 px-2 font-medium text-muted-foreground">Recipient</th>
+                          <th className="text-left py-3 px-2 font-medium text-muted-foreground">Subject</th>
+                          <th className="text-left py-3 px-2 font-medium text-muted-foreground">Status</th>
+                          <th className="text-left py-3 px-2 font-medium text-muted-foreground">Time</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {emails.map((email) => (
+                          <tr key={email.id} className="border-b border-border/50 hover:bg-muted/30">
+                            <td className="py-3 px-2 font-mono text-xs">{email.recipient}</td>
+                            <td className="py-3 px-2">{email.subject}</td>
+                            <td className="py-3 px-2">
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${statusColor(email.status)}`}>
+                                {email.status}
+                              </span>
+                            </td>
+                            <td className="py-3 px-2 text-muted-foreground text-xs">
+                              {new Date(email.created_at).toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Send Test Tab */}
+          <TabsContent value="send">
+            <Card className="glass-card">
+              <CardHeader>
+                <CardTitle>Send Test Email</CardTitle>
+                <CardDescription>Queue a test email through your Senvio pipeline</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="to">Recipient</Label>
+                  <Input id="to" type="email" placeholder="user@example.com" value={testTo} onChange={(e) => setTestTo(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="subject">Subject</Label>
+                  <Input id="subject" value={testSubject} onChange={(e) => setTestSubject(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="body">Body (HTML)</Label>
+                  <textarea
+                    id="body"
+                    className="w-full min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    value={testBody}
+                    onChange={(e) => setTestBody(e.target.value)}
+                  />
+                </div>
+                <Button onClick={sendTestEmail} disabled={sending}>
+                  <Send className="h-4 w-4 mr-2" /> {sending ? "Queuing..." : "Send Email"}
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
+}

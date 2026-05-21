@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@layer base {
+  :root, .dark {
+    /* Premium dark with Senviok green accent */
+    --background: 160 20% 5%;
+    --foreground: 150 15% 96%;
+
+    --card: 160 18% 8%;
+    --card-foreground: 150 15% 96%;
+
+    --popover: 160 18% 8%;
+    --popover-foreground: 150 15% 96%;
+
+    /* Senviok brand green ~ #22DD7A */
+    --primary: 150 73% 50%;
+    --primary-foreground: 160 30% 6%;
+    --primary-glow: 145 80% 60%;
+
+    --secondary: 160 15% 12%;
+    --secondary-foreground: 150 15% 96%;
+
+    --muted: 160 15% 11%;
+    --muted-foreground: 150 8% 60%;
+
+    --accent: 150 73% 50%;
+    --accent-foreground: 160 30% 6%;
+
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 160 15% 15%;
+    --input: 160 15% 14%;
+    --ring: 150 73% 50%;
+
+    --radius: 0.75rem;
+
+    --success: 150 73% 50%;
+    --success-foreground: 160 30% 6%;
+    --warning: 38 92% 55%;
+    --warning-foreground: 160 30% 6%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(150 73% 50%), hsl(145 80% 60%));
+    --gradient-radial: radial-gradient(ellipse at top, hsl(150 73% 50% / 0.18), transparent 60%);
+    --shadow-glow: 0 0 60px hsl(150 73% 50% / 0.25);
+    --shadow-elegant: 0 20px 60px -20px hsl(150 73% 50% / 0.35);
+
+    --sidebar-background: 160 20% 5%;
+    --sidebar-foreground: 150 15% 96%;
+    --sidebar-primary: 150 73% 50%;
+    --sidebar-primary-foreground: 160 30% 6%;
+    --sidebar-accent: 160 15% 11%;
+    --sidebar-accent-foreground: 150 15% 96%;
+    --sidebar-border: 160 15% 15%;
+    --sidebar-ring: 150 73% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "ss01", "cv11";
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.3);
+    color: hsl(var(--foreground));
+  }
+}
+
+@layer utilities {
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-primary);
+  }
+  .glass-card {
+    @apply bg-card/60 border border-border backdrop-blur-xl;
+  }
+  .glow-primary {
+    box-shadow: var(--shadow-glow);
+  }
+  .bg-radial-glow {
+    background-image: var(--gradient-radial);
+  }
+  .grid-bg {
+    background-image:
+      linear-gradient(hsl(var(--border) / 0.4) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.4) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+  }
+}
