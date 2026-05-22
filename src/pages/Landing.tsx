@@ -342,7 +342,7 @@ var response = await client.Emails.SendAsync(new EmailRequest
                     Verify custom sending domains directly in your developer dashboard. Senviok auto-generates DKIM DNS parameters to satisfy SPF and DMARC checks.
                   </p>
                   <ul className="text-xs text-muted-foreground space-y-1.5">
-                    <li className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-primary/70" /> Triple-CNAME AWS SES tokens</li>
+                    <li className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-primary/70" /> Triple-CNAME verification records</li>
                     <li className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-primary/70" /> Real-time DNS propagation checking</li>
                   </ul>
                 </div>
@@ -355,7 +355,7 @@ var response = await client.Emails.SendAsync(new EmailRequest
                 <div>
                   <h3 className="text-lg font-bold mb-2">Low-Latency African Routing</h3>
                   <p className="text-muted-foreground text-sm leading-relaxed mb-3">
-                    Hosted primarily in AWS Cape Town region (af-south-1). Built to dramatically decrease connection overheads for African engineering teams.
+                    Hosted primarily in Cape Town regional nodes (af-south-1). Built to dramatically decrease connection overheads for African engineering teams.
                   </p>
                   <ul className="text-xs text-muted-foreground space-y-1.5">
                     <li className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-primary/70" /> Sub-20ms API response latency</li>
@@ -421,14 +421,14 @@ var response = await client.Emails.SendAsync(new EmailRequest
                     <span className="text-primary">POST /v1/sms</span>
                     <span>201 Created</span>
                   </div>
-                  <div className="text-[10px] text-primary/60 mt-1">recipient: +234803***** · channel: termii</div>
+                  <div className="text-[10px] text-primary/60 mt-1">recipient: +234803***** · route: priority_sms</div>
                 </div>
                 <div className="bg-background/80 border border-border/50 rounded-lg p-3 font-mono text-[11px] leading-relaxed text-muted-foreground opacity-60">
                   <div className="flex justify-between">
                     <span className="text-primary">POST /v1/domains/verify</span>
                     <span>200 Success</span>
                   </div>
-                  <div className="text-[10px] text-primary/60 mt-1">domain: app.yourdomain.com · aws_identity: verified</div>
+                  <div className="text-[10px] text-primary/60 mt-1">domain: app.yourdomain.com · identity: verified</div>
                 </div>
               </div>
             </div>
@@ -442,21 +442,22 @@ var response = await client.Emails.SendAsync(new EmailRequest
             <p className="text-muted-foreground">Start free, upgrade as you grow. No hidden platform fees.</p>
           </div>
 
-          <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-8">
+          <div className="max-w-6xl mx-auto grid md:grid-cols-3 gap-8">
             {/* Free Tier */}
             <div className="glass-card rounded-2xl border border-border/60 p-8 flex flex-col justify-between hover:border-primary/20 transition-all duration-300">
               <div>
-                <h3 className="text-xl font-bold mb-2">Developer Free</h3>
-                <p className="text-xs text-muted-foreground mb-6">Perfect for building, sandbox testing, and launching MVP projects.</p>
+                <h3 className="text-xl font-bold mb-2">Free</h3>
+                <p className="text-xs text-muted-foreground mb-6">Perfect for building, sandbox testing, and launching small scale projects.</p>
                 <div className="flex items-baseline gap-1 mb-8">
-                  <span className="text-4xl font-extrabold font-mono text-foreground">$0</span>
+                  <span className="text-4xl font-extrabold font-mono text-foreground">₦0</span>
                   <span className="text-muted-foreground text-xs">/ month</span>
                 </div>
                 <ul className="space-y-3.5 text-sm text-muted-foreground">
-                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> 10,000 emails per month</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> Up to 3 verified domains</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> Real-time dashboard analytics</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> 3-day webhook event log retention</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> 1,000 emails/month</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> 100 SMS/month</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> Basic analytics</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> 2 custom domains</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> 1 workspace</li>
                 </ul>
               </div>
               <Button variant="outline" asChild className="w-full mt-8" id="pricing-cta-free">
@@ -464,28 +465,51 @@ var response = await client.Emails.SendAsync(new EmailRequest
               </Button>
             </div>
 
-            {/* Pay as You Go / Grow Tier */}
-            <div className="glass-card rounded-2xl border border-primary/30 bg-primary/[0.02] p-8 flex flex-col justify-between relative shadow-glow-subtle hover:border-primary/50 transition-all duration-300">
-              <div className="absolute top-4 right-4 bg-primary/10 border border-primary/20 text-primary text-[10px] uppercase font-mono tracking-wider font-semibold py-1 px-2.5 rounded-full">
-                Scale
-              </div>
+            {/* Starter Tier */}
+            <div className="glass-card rounded-2xl border border-primary/30 bg-primary/[0.01] p-8 flex flex-col justify-between hover:border-primary/45 transition-all duration-300">
               <div>
-                <h3 className="text-xl font-bold mb-2">Production Scale</h3>
-                <p className="text-xs text-muted-foreground mb-6">For scaling startups and applications requiring high dispatch limits.</p>
+                <h3 className="text-xl font-bold mb-2">Starter</h3>
+                <p className="text-xs text-muted-foreground mb-6">Ideal for growing startups needing higher dispatch limits and webhooks.</p>
                 <div className="flex items-baseline gap-1 mb-8">
-                  <span className="text-4xl font-extrabold font-mono text-foreground">$0.10</span>
-                  <span className="text-muted-foreground text-xs">/ 1,000 emails</span>
+                  <span className="text-4xl font-extrabold font-mono text-foreground">₦9,999</span>
+                  <span className="text-muted-foreground text-xs">/ month</span>
                 </div>
                 <ul className="space-y-3.5 text-sm text-muted-foreground">
-                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> Unlimited sending limits</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> Unlimited verified custom domains</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> Shared or dedicated IP options</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> 30-day webhook event log retention</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> Prioritized ticket & slack support</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> 30,000 emails/month</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> 2,000 SMS/month</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> Full analytics</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> 5 team members</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> Webhooks</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> Unlimited custom domain</li>
                 </ul>
               </div>
-              <Button asChild className="w-full mt-8 bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-elegant" id="pricing-cta-scale">
-                <Link to="/auth">Create scale account</Link>
+              <Button asChild className="w-full mt-8 bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-elegant" id="pricing-cta-starter">
+                <Link to="/auth">Get Started</Link>
+              </Button>
+            </div>
+
+            {/* Growth Tier */}
+            <div className="glass-card rounded-2xl border border-primary/30 bg-primary/[0.03] p-8 flex flex-col justify-between relative shadow-glow-subtle hover:border-primary/50 transition-all duration-300">
+              <div className="absolute top-4 right-4 bg-primary/10 border border-primary/20 text-primary text-[10px] uppercase font-mono tracking-wider font-semibold py-1 px-2.5 rounded-full">
+                Popular
+              </div>
+              <div>
+                <h3 className="text-xl font-bold mb-2">Growth</h3>
+                <p className="text-xs text-muted-foreground mb-6">Designed for scaling applications needing large sending limits and priority support.</p>
+                <div className="flex items-baseline gap-1 mb-8">
+                  <span className="text-4xl font-extrabold font-mono text-foreground">₦29,999</span>
+                  <span className="text-muted-foreground text-xs">/ month</span>
+                </div>
+                <ul className="space-y-3.5 text-sm text-muted-foreground">
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> 100,000 emails/month</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> 10,000 SMS/month</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> Custom domain</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> Unlimited members</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> Priority support</li>
+                </ul>
+              </div>
+              <Button asChild className="w-full mt-8 bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-elegant" id="pricing-cta-growth">
+                <Link to="/auth">Choose Growth</Link>
               </Button>
             </div>
           </div>
