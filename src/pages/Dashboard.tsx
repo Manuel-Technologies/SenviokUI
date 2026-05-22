@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Mail, Key, LogOut, Copy, Plus, Trash2, Send, RefreshCw, BookOpen } from "lucide-react";
+import { Mail, Key, LogOut, Copy, Plus, Trash2, Send, RefreshCw, BookOpen, Globe, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 
 interface ApiKey {
@@ -25,6 +25,19 @@ interface EmailLog {
   status: string;
   created_at: string;
   error_message: string | null;
+}
+
+interface DomainItem {
+  id: string;
+  name: string;
+  status: string;
+  created_at: string;
+}
+
+interface DkimToken {
+  name: string;
+  value: string;
+  type: string;
 }
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5033";
@@ -45,6 +58,15 @@ export default function Dashboard() {
   const [testBody, setTestBody] = useState("<h1>Hello!</h1><p>This is a test email from Senviok.</p>");
   const [sending, setSending] = useState(false);
 
+  // Domain states
+  const [domains, setDomains] = useState<DomainItem[]>([]);
+  const [newDomainName, setNewDomainName] = useState("");
+  const [addingDomain, setAddingDomain] = useState(false);
+  const [selectedDomain, setSelectedDomain] = useState<DomainItem | null>(null);
+  const [dkimTokens, setDkimTokens] = useState<DkimToken[]>([]);
+  const [fetchingDkim, setFetchingDkim] = useState(false);
+  const [checkingVerify, setCheckingVerify] = useState(false);
+
   useEffect(() => {
     if (user) {
       setProfile({
@@ -53,8 +75,131 @@ export default function Dashboard() {
       });
       fetchApiKeys();
       fetchEmails();
+      fetchDomains();
     }
   }, [user]);
+
+  const fetchDomains = async () => {
+    if (!session?.access_token) return;
+    try {
+      const res = await fetch(`${API_URL}/v1/domains`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to fetch domains");
+      const data = await res.json();
+      const mapped = (data.data || []).map((d: any) => ({
+        id: d.id,
+        name: d.name,
+        status: d.status,
+        created_at: d.createdAt,
+      }));
+      setDomains(mapped);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load domains");
+    }
+  };
+
+  const createDomain = async () => {
+    if (!newDomainName) {
+      toast.error("Domain name is required");
+      return;
+    }
+    const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+$/;
+    if (!domainRegex.test(newDomainName)) {
+      toast.error("Please enter a valid domain name (e.g. example.com)");
+      return;
+    }
+
+    if (!session?.access_token) return;
+    setAddingDomain(true);
+    try {
+      const res = await fetch(`${API_URL}/v1/domains`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ Name: newDomainName }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.Message || errData.message || "Failed to add domain");
+      }
+
+      const data = await res.json();
+      const newDomain: DomainItem = {
+        id: data.id,
+        name: data.name,
+        status: data.status,
+        created_at: data.createdAt,
+      };
+
+      setDomains((prev) => [...prev, newDomain]);
+      setNewDomainName("");
+      toast.success("Domain added! Loading DNS records...");
+      
+      // Auto select it
+      handleSelectDomain(newDomain);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add domain");
+    }
+    setAddingDomain(false);
+  };
+
+  const handleSelectDomain = async (domain: DomainItem) => {
+    setSelectedDomain(domain);
+    setDkimTokens([]);
+    if (!session?.access_token) return;
+    setFetchingDkim(true);
+    try {
+      const res = await fetch(`${API_URL}/v1/domains/${domain.id}/dkim`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to load DKIM verification records");
+      const data = await res.json();
+      setDkimTokens(data.tokens || []);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load DKIM tokens");
+    }
+    setFetchingDkim(false);
+  };
+
+  const checkDomainVerification = async (domainId: string) => {
+    if (!session?.access_token) return;
+    setCheckingVerify(true);
+    try {
+      const res = await fetch(`${API_URL}/v1/domains/${domainId}/verify`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to check domain verification status");
+      const data = await res.json();
+      
+      setDomains((prev) =>
+        prev.map((d) => (d.id === domainId ? { ...d, status: data.status } : d))
+      );
+      
+      if (selectedDomain && selectedDomain.id === domainId) {
+        setSelectedDomain((prev) => prev ? { ...prev, status: data.status } : null);
+      }
+
+      if (data.status === "Verified") {
+        toast.success("Domain verified successfully!");
+      } else {
+        toast.info(`Domain status is currently: ${data.status}`);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to verify domain");
+    }
+    setCheckingVerify(false);
+  };
 
   const fetchApiKeys = async () => {
     if (!session?.access_token) return;
@@ -259,9 +404,12 @@ export default function Dashboard() {
         </div>
 
         <Tabs defaultValue="keys" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="keys">
               <Key className="h-4 w-4 mr-2" /> API Keys
+            </TabsTrigger>
+            <TabsTrigger value="domains">
+              <Globe className="h-4 w-4 mr-2" /> Domains
             </TabsTrigger>
             <TabsTrigger value="logs">
               <Mail className="h-4 w-4 mr-2" /> Email Logs
@@ -341,6 +489,270 @@ export default function Dashboard() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Domains Tab */}
+          <TabsContent value="domains" className="space-y-6">
+            <div className="grid md:grid-cols-3 gap-6">
+              {/* Left Side: Register and List Domains */}
+              <div className="md:col-span-1 space-y-4">
+                <Card className="glass-card">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Add Domain</CardTitle>
+                    <CardDescription>Link your custom domain to send verified emails</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="domainName">Domain Name</Label>
+                      <Input
+                        id="domainName"
+                        placeholder="e.g. startup.com"
+                        value={newDomainName}
+                        onChange={(e) => setNewDomainName(e.target.value)}
+                      />
+                    </div>
+                    <Button onClick={createDomain} disabled={addingDomain} className="w-full">
+                      {addingDomain ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Adding...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-4 w-4 mr-2" /> Add Domain
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="glass-card">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Your Domains</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {domains.length === 0 ? (
+                      <p className="text-muted-foreground text-sm p-6 text-center">No custom domains added yet.</p>
+                    ) : (
+                      <div className="divide-y divide-border/40">
+                        {domains.map((dom) => (
+                          <button
+                            key={dom.id}
+                            onClick={() => handleSelectDomain(dom)}
+                            className={`w-full text-left p-4 transition-colors flex items-center justify-between hover:bg-muted/30 ${
+                              selectedDomain?.id === dom.id ? "bg-muted/50 border-r-2 border-primary" : ""
+                            }`}
+                          >
+                            <div className="min-w-0 pr-2">
+                              <p className="font-medium text-sm truncate">{dom.name}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                Added {new Date(dom.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <span
+                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium border uppercase tracking-wider shrink-0 ${
+                                dom.status.toLowerCase() === "verified"
+                                  ? "bg-green-500/15 text-green-500 border-green-500/30"
+                                  : "bg-yellow-500/15 text-yellow-500 border-yellow-500/30"
+                              }`}
+                            >
+                              {dom.status}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Right Side: Selected Domain DNS Details */}
+              <div className="md:col-span-2">
+                {selectedDomain ? (
+                  <Card className="glass-card">
+                    <CardHeader className="flex flex-row items-start justify-between space-y-0">
+                      <div>
+                        <CardTitle className="text-xl flex items-center gap-2">
+                          <Globe className="h-5 w-5 text-muted-foreground" />
+                          {selectedDomain.name}
+                        </CardTitle>
+                        <CardDescription className="mt-1">
+                          Configure your DNS records below to verify ownership and authorize sending.
+                        </CardDescription>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => checkDomainVerification(selectedDomain.id)}
+                          disabled={checkingVerify}
+                        >
+                          {checkingVerify ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Verifying...
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="h-4 w-4 mr-2" /> Verify Domain
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      {/* Verification Status Banner */}
+                      <div
+                        className={`rounded-lg border p-4 flex items-start gap-3 ${
+                          selectedDomain.status.toLowerCase() === "verified"
+                            ? "bg-green-500/10 border-green-500/20 text-green-400"
+                            : "bg-yellow-500/10 border-yellow-500/20 text-yellow-400"
+                        }`}
+                      >
+                        {selectedDomain.status.toLowerCase() === "verified" ? (
+                          <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5" />
+                        ) : (
+                          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+                        )}
+                        <div>
+                          <p className="font-semibold text-sm">
+                            Status: {selectedDomain.status === "Verified" ? "Verified" : "Verification Pending"}
+                          </p>
+                          <p className="text-xs mt-1 text-muted-foreground leading-relaxed">
+                            {selectedDomain.status === "Verified"
+                              ? `Your domain ${selectedDomain.name} is fully verified. You can now send emails from any address at this domain (e.g. support@${selectedDomain.name}).`
+                              : `We're waiting to verify your domain. Please add the CNAME records below to your DNS provider (e.g., Cloudflare, Namecheap, GoDaddy). It can take up to 24 hours for DNS changes to propagate.`}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* DKIM / CNAME Records Table */}
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">DKIM (CNAME) Records</h4>
+                        {fetchingDkim ? (
+                          <div className="py-12 flex flex-col items-center justify-center text-muted-foreground gap-2">
+                            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                            <p className="text-xs">Fetching DNS tokens...</p>
+                          </div>
+                        ) : dkimTokens.length === 0 ? (
+                          <p className="text-xs text-muted-foreground bg-muted/30 border rounded p-4">
+                            No DKIM records available. Try clicking "Verify Domain" to register the identity again or refresh.
+                          </p>
+                        ) : (
+                          <div className="border border-border/50 rounded-lg overflow-hidden bg-background/50">
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-xs text-left">
+                                <thead>
+                                  <tr className="border-b border-border bg-muted/40 font-medium text-muted-foreground">
+                                    <th className="py-2.5 px-3">Type</th>
+                                    <th className="py-2.5 px-3">Name / Hostname</th>
+                                    <th className="py-2.5 px-3">Value / Target</th>
+                                    <th className="py-2.5 px-3 text-right">Action</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {dkimTokens.map((token, idx) => (
+                                    <tr key={idx} className="border-b border-border/40 last:border-0 hover:bg-muted/20">
+                                      <td className="py-3 px-3 font-semibold text-primary">{token.type || "CNAME"}</td>
+                                      <td className="py-3 px-3 font-mono break-all select-all pr-4 max-w-[200px] md:max-w-none">
+                                        {token.name}
+                                      </td>
+                                      <td className="py-3 px-3 font-mono break-all select-all pr-4 max-w-[200px] md:max-w-none">
+                                        {token.value}
+                                      </td>
+                                      <td className="py-3 px-3 text-right">
+                                        <div className="flex justify-end gap-1.5">
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-7 w-7"
+                                            onClick={() => {
+                                              navigator.clipboard.writeText(token.name);
+                                              toast.success("Name copied!");
+                                            }}
+                                            title="Copy Hostname"
+                                          >
+                                            <Copy className="h-3.5 w-3.5" />
+                                          </Button>
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-7 w-7 text-primary"
+                                            onClick={() => {
+                                              navigator.clipboard.writeText(token.value);
+                                              toast.success("Value copied!");
+                                            }}
+                                            title="Copy Target Value"
+                                          >
+                                            <Copy className="h-3.5 w-3.5" />
+                                          </Button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* SPF and DMARC recommendation */}
+                      <div className="space-y-3 pt-2 border-t border-border/40">
+                        <h4 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">SPF & DMARC (Recommended)</h4>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          For best deliverability and to protect your domain name from spoofing, we recommend adding these TXT records:
+                        </p>
+                        <div className="border border-border/50 rounded-lg overflow-hidden bg-background/50 text-xs">
+                          <div className="p-3 border-b border-border/45 flex items-start gap-4">
+                            <div className="font-semibold text-primary w-12 shrink-0">SPF</div>
+                            <div className="flex-1 space-y-1 font-mono">
+                              <div><span className="text-muted-foreground">Host:</span> @</div>
+                              <div><span className="text-muted-foreground">Value:</span> v=spf1 include:amazonses.com ~all</div>
+                            </div>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => {
+                                navigator.clipboard.writeText("v=spf1 include:amazonses.com ~all");
+                                toast.success("SPF copied!");
+                              }}
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                          <div className="p-3 flex items-start gap-4">
+                            <div className="font-semibold text-primary w-12 shrink-0">DMARC</div>
+                            <div className="flex-1 space-y-1 font-mono">
+                              <div><span className="text-muted-foreground">Host:</span> _dmarc</div>
+                              <div><span className="text-muted-foreground">Value:</span> v=DMARC1; p=none; rua=mailto:dmarc@{selectedDomain.name}</div>
+                            </div>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => {
+                                navigator.clipboard.writeText(`v=DMARC1; p=none; rua=mailto:dmarc@${selectedDomain.name}`);
+                                toast.success("DMARC copied!");
+                              }}
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card className="glass-card h-full flex flex-col items-center justify-center p-12 text-center text-muted-foreground border-dashed">
+                    <Globe className="h-12 w-12 text-muted-foreground/30 mb-4" />
+                    <CardTitle className="text-base font-medium">No Domain Selected</CardTitle>
+                    <p className="text-sm mt-1 max-w-sm">
+                      Select a domain from the list to view its DNS verification configuration and verify its status.
+                    </p>
+                  </Card>
+                )}
+              </div>
+            </div>
           </TabsContent>
 
           {/* Email Logs Tab */}
