@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -13,22 +13,31 @@ export default function Auth() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [startupName, setStartupName] = useState("");
   const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
 
-  const slugPreview = startupName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "") || "your-startup";
+  useEffect(() => {
+    document.title = isSignUp
+      ? "Sign Up for Senviok | Developer-First Email & SMS"
+      : "Sign In to Senviok | Developer-First Email & SMS";
+    const metaDesc = document.querySelector('meta[name="description"]');
+    if (metaDesc) {
+      metaDesc.setAttribute(
+        "content",
+        isSignUp
+          ? "Create a Senviok account and start sending transactional emails and SMS notifications. Low latency, NDPR compliance, developer-first tooling."
+          : "Access your Senviok developer dashboard. Manage verified sending domains, API keys, webhook configurations, and track analytics."
+      );
+    }
+  }, [isSignUp]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     const { error } = isSignUp
-      ? await signUp(email, password, startupName)
+      ? await signUp(email, password)
       : await signIn(email, password);
 
     if (error) {
@@ -46,7 +55,11 @@ export default function Auth() {
       <div className="pointer-events-none absolute inset-0 bg-radial-glow" />
       <div className="pointer-events-none absolute inset-0 grid-bg opacity-40" />
       <div className="relative w-full max-w-md">
-        <Link to="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8 transition-colors">
+        <Link 
+          id="auth-back-to-home"
+          to="/" 
+          className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8 transition-colors"
+        >
           <ArrowLeft className="h-4 w-4" />
           Back to home
         </Link>
@@ -63,27 +76,10 @@ export default function Auth() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              {isSignUp && (
-                <div className="space-y-2">
-                  <Label htmlFor="startup">Startup name</Label>
-                  <Input
-                    id="startup"
-                    type="text"
-                    placeholder="Acme Inc."
-                    value={startupName}
-                    onChange={(e) => setStartupName(e.target.value)}
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Your sending address will be{" "}
-                    <code className="font-mono text-primary">noreply@{slugPreview}.senviok.email</code>
-                  </p>
-                </div>
-              )}
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="auth-email">Email Address</Label>
                 <Input
-                  id="email"
+                  id="auth-email"
                   type="email"
                   placeholder="you@company.com"
                   value={email}
@@ -92,9 +88,9 @@ export default function Auth() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="auth-password">Password</Label>
                 <Input
-                  id="password"
+                  id="auth-password"
                   type="password"
                   placeholder="••••••••"
                   value={password}
@@ -103,13 +99,19 @@ export default function Auth() {
                   minLength={6}
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button 
+                id="auth-submit-btn"
+                type="submit" 
+                className="w-full" 
+                disabled={loading}
+              >
                 {loading ? "Loading..." : isSignUp ? "Create Account" : "Sign In"}
               </Button>
             </form>
             <div className="mt-4 text-center text-sm text-muted-foreground">
               {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
               <button
+                id="auth-toggle-mode-btn"
                 onClick={() => setIsSignUp(!isSignUp)}
                 className="text-primary hover:underline font-medium"
               >

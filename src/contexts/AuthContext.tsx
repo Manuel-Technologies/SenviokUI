@@ -17,7 +17,7 @@ interface AuthContextType {
   session: Session | null;
   user: User | null;
   loading: boolean;
-  signUp: (email: string, password: string, startupName: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
@@ -79,13 +79,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initializeAuth();
   }, []);
 
-  const signUp = async (email: string, password: string, startupName: string) => {
+  const signUp = async (email: string, password: string) => {
     try {
       const name = email.split("@")[0];
       const res = await fetch(`${API_URL}/v1/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ Email: email, Password: password, Name: name, CompanyName: startupName }),
+        body: JSON.stringify({ Email: email, Password: password, Name: name, CompanyName: "" }),
       });
 
       if (!res.ok) {
