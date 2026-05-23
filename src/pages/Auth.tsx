@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Github } from "lucide-react";
 import { Logo } from "@/components/Logo";
 
 export default function Auth() {
@@ -31,6 +31,52 @@ export default function Auth() {
       );
     }
   }, [isSignUp]);
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get("code");
+    
+    if (code) {
+      // Clean query parameters from URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      const handleOAuthCallback = async () => {
+        setLoading(true);
+        const toastId = toast.loading("Authenticating with GitHub...");
+        try {
+          const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5033";
+          const res = await fetch(`${API_URL}/v1/auth/github/callback`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ Code: code, RedirectUri: "http://localhost:5173/auth" })
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.Message || errData.message || "GitHub OAuth failed.");
+          }
+
+          const data = await res.json();
+          localStorage.setItem("senviok_token", data.token);
+          
+          toast.success("Successfully logged in with GitHub!", { id: toastId });
+          window.location.href = "/dashboard";
+        } catch (err: any) {
+          console.error(err);
+          toast.error(err.message || "Failed to authenticate with GitHub.", { id: toastId });
+        } finally {
+          setLoading(false);
+        }
+      };
+      handleOAuthCallback();
+    }
+  }, [navigate]);
+
+  const handleGithubLogin = () => {
+    const clientId = "Ov23liH8eYp70IFiCLGn";
+    const redirectUri = encodeURIComponent("http://localhost:5173/auth");
+    window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=user:email`;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,7 +154,29 @@ export default function Auth() {
                 {loading ? "Loading..." : isSignUp ? "Create Account" : "Sign In"}
               </Button>
             </form>
-            <div className="mt-4 text-center text-sm text-muted-foreground">
+
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border/50" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-[#050b07] px-2.5 text-muted-foreground">Or continue with</span>
+              </div>
+            </div>
+
+            <Button
+              id="auth-github-btn"
+              variant="outline"
+              type="button"
+              className="w-full bg-card hover:bg-muted/40 border-border/50 text-foreground py-5 flex items-center justify-center"
+              onClick={handleGithubLogin}
+              disabled={loading}
+            >
+              <Github className="mr-2 h-4.5 w-4.5" />
+              GitHub
+            </Button>
+
+            <div className="mt-6 text-center text-sm text-muted-foreground">
               {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
               <button
                 id="auth-toggle-mode-btn"
