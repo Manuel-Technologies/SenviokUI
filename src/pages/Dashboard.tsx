@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Mail, Key, LogOut, Copy, Plus, Trash2, Send, RefreshCw, BookOpen, Globe, CheckCircle2, AlertCircle, Loader2, Radio } from "lucide-react";
+import { Mail, Key, LogOut, Copy, Plus, Trash2, Send, RefreshCw, BookOpen, Globe, CheckCircle2, AlertCircle, Loader2, Radio, Users, UserMinus, UserPlus } from "lucide-react";
 import { Logo } from "@/components/Logo";
 
 interface ApiKey {
@@ -48,6 +48,22 @@ interface WebhookItem {
   created_at: string;
 }
 
+interface AudienceItem {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
+interface ContactItem {
+  id: string;
+  audienceId: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  unsubscribed: boolean;
+  created_at: string;
+}
+
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5033";
 
 export default function Dashboard() {
@@ -83,6 +99,23 @@ export default function Dashboard() {
   const [selectedWebhook, setSelectedWebhook] = useState<WebhookItem | null>(null);
   const [deletingWebhookId, setDeletingWebhookId] = useState<string | null>(null);
 
+  // Audience & Contact states
+  const [audiences, setAudiences] = useState<AudienceItem[]>([]);
+  const [newAudienceName, setNewAudienceName] = useState("");
+  const [addingAudience, setAddingAudience] = useState(false);
+  const [selectedAudience, setSelectedAudience] = useState<AudienceItem | null>(null);
+  const [deletingAudienceId, setDeletingAudienceId] = useState<string | null>(null);
+
+  const [contacts, setContacts] = useState<ContactItem[]>([]);
+  const [newContactEmail, setNewContactEmail] = useState("");
+  const [newContactFirstName, setNewContactFirstName] = useState("");
+  const [newContactLastName, setNewContactLastName] = useState("");
+  const [newContactUnsubscribed, setNewContactUnsubscribed] = useState(false);
+  const [addingContact, setAddingContact] = useState(false);
+  const [deletingContactId, setDeletingContactId] = useState<string | null>(null);
+  const [contactSearchQuery, setContactSearchQuery] = useState("");
+  const [fetchingContacts, setFetchingContacts] = useState(false);
+
   useEffect(() => {
     if (user) {
       setProfile({
@@ -93,6 +126,7 @@ export default function Dashboard() {
       fetchEmails();
       fetchDomains();
       fetchWebhooks();
+      fetchAudiences();
     }
   }, [user]);
 
@@ -190,6 +224,187 @@ export default function Dashboard() {
     setSelectedWebhookEvents(prev => 
       prev.includes(event) ? prev.filter(e => e !== event) : [...prev, event]
     );
+  };
+
+  const fetchAudiences = async () => {
+    if (!session?.access_token) return;
+    try {
+      const res = await fetch(`${API_URL}/v1/audiences`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to fetch audiences");
+      const data = await res.json();
+      const mapped = (data.data || []).map((a: any) => ({
+        id: a.id,
+        name: a.name,
+        created_at: a.createdAt,
+      }));
+      setAudiences(mapped);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load audiences");
+    }
+  };
+
+  const createAudience = async () => {
+    if (!newAudienceName) {
+      toast.error("Audience name is required");
+      return;
+    }
+    if (!session?.access_token) return;
+    setAddingAudience(true);
+    try {
+      const res = await fetch(`${API_URL}/v1/audiences`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ Name: newAudienceName }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.Message || errData.message || "Failed to create audience");
+      }
+      const data = await res.json();
+      const newAud: AudienceItem = {
+        id: data.id,
+        name: data.name,
+        created_at: data.createdAt,
+      };
+      setAudiences(prev => [...prev, newAud]);
+      setNewAudienceName("");
+      toast.success("Audience created successfully!");
+      handleSelectAudience(newAud);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create audience");
+    } finally {
+      setAddingAudience(false);
+    }
+  };
+
+  const deleteAudience = async (id: string) => {
+    if (!session?.access_token) return;
+    setDeletingAudienceId(id);
+    try {
+      const res = await fetch(`${API_URL}/v1/audiences/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to delete audience");
+      toast.success("Audience deleted successfully!");
+      setAudiences(prev => prev.filter(a => a.id !== id));
+      if (selectedAudience?.id === id) {
+        setSelectedAudience(null);
+        setContacts([]);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete audience");
+    } finally {
+      setDeletingAudienceId(null);
+    }
+  };
+
+  const handleSelectAudience = async (audience: AudienceItem) => {
+    setSelectedAudience(audience);
+    setContacts([]);
+    fetchContacts(audience.id);
+  };
+
+  const fetchContacts = async (audienceId: string) => {
+    if (!session?.access_token) return;
+    setFetchingContacts(true);
+    try {
+      const res = await fetch(`${API_URL}/v1/audiences/${audienceId}/contacts`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to fetch contacts");
+      const data = await res.json();
+      const mapped = (data.data || []).map((c: any) => ({
+        id: c.id,
+        audienceId: c.audienceId,
+        email: c.email,
+        firstName: c.firstName,
+        lastName: c.lastName,
+        unsubscribed: c.unsubscribed,
+        created_at: c.createdAt,
+      }));
+      setContacts(mapped);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load contacts");
+    } finally {
+      setFetchingContacts(false);
+    }
+  };
+
+  const createContact = async () => {
+    if (!selectedAudience) return;
+    if (!newContactEmail) {
+      toast.error("Contact email is required");
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newContactEmail)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+    if (!session?.access_token) return;
+    setAddingContact(true);
+    try {
+      const res = await fetch(`${API_URL}/v1/audiences/${selectedAudience.id}/contacts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          AudienceId: selectedAudience.id,
+          Email: newContactEmail,
+          FirstName: newContactFirstName || null,
+          LastName: newContactLastName || null,
+          Unsubscribed: newContactUnsubscribed,
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.Message || errData.message || "Failed to add contact");
+      }
+      toast.success("Contact added successfully!");
+      setNewContactEmail("");
+      setNewContactFirstName("");
+      setNewContactLastName("");
+      setNewContactUnsubscribed(false);
+      fetchContacts(selectedAudience.id);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add contact");
+    } finally {
+      setAddingContact(false);
+    }
+  };
+
+  const deleteContact = async (id: string) => {
+    if (!selectedAudience || !session?.access_token) return;
+    setDeletingContactId(id);
+    try {
+      const res = await fetch(`${API_URL}/v1/audiences/${selectedAudience.id}/contacts/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to remove contact");
+      toast.success("Contact removed successfully!");
+      fetchContacts(selectedAudience.id);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to remove contact");
+    } finally {
+      setDeletingContactId(null);
+    }
   };
 
   const fetchDomains = async () => {
@@ -517,7 +732,7 @@ export default function Dashboard() {
         </div>
 
         <Tabs defaultValue="keys" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="keys">
               <Key className="h-4 w-4 mr-2" /> API Keys
             </TabsTrigger>
@@ -526,6 +741,9 @@ export default function Dashboard() {
             </TabsTrigger>
             <TabsTrigger value="webhooks">
               <Radio className="h-4 w-4 mr-2" /> Webhooks
+            </TabsTrigger>
+            <TabsTrigger value="audiences">
+              <Users className="h-4 w-4 mr-2" /> Audiences
             </TabsTrigger>
             <TabsTrigger value="logs">
               <Mail className="h-4 w-4 mr-2" /> Email Logs
@@ -1079,6 +1297,279 @@ function verifyWebhook(requestBody, signatureHeader, signingSecret) {
                     <CardTitle className="text-base font-medium">No Endpoint Selected</CardTitle>
                     <p className="text-sm mt-1 max-w-sm">
                       Select a webhook endpoint from the list to view its signing secret, subscribed events, and developer implementation details.
+                    </p>
+                  </Card>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Audiences Tab */}
+          <TabsContent value="audiences" className="space-y-6">
+            <div className="grid md:grid-cols-3 gap-6">
+              {/* Left Side: Create and List Audiences */}
+              <div className="md:col-span-1 space-y-4">
+                <Card className="glass-card">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Create Audience</CardTitle>
+                    <CardDescription>Group your contacts into segment lists</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="audienceName">Audience Name</Label>
+                      <Input
+                        id="audienceName"
+                        placeholder="e.g. Newsletter Subscribers"
+                        value={newAudienceName}
+                        onChange={(e) => setNewAudienceName(e.target.value)}
+                      />
+                    </div>
+                    <Button onClick={createAudience} disabled={addingAudience} className="w-full">
+                      {addingAudience ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creating...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-4 w-4 mr-2" /> Create Audience
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="glass-card">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                    <CardTitle className="text-lg">Your Audiences</CardTitle>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={fetchAudiences}>
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    </Button>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {audiences.length === 0 ? (
+                      <p className="text-muted-foreground text-sm p-6 text-center">No audiences created yet.</p>
+                    ) : (
+                      <div className="divide-y divide-border/40">
+                        {audiences.map((aud) => (
+                          <button
+                            key={aud.id}
+                            onClick={() => handleSelectAudience(aud)}
+                            className={`w-full text-left p-4 transition-colors flex items-center justify-between hover:bg-muted/30 ${
+                              selectedAudience?.id === aud.id ? "bg-muted/50 border-r-2 border-primary" : ""
+                            }`}
+                          >
+                            <div className="min-w-0 pr-2">
+                              <p className="font-medium text-sm truncate">{aud.name}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                Created {new Date(aud.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <span className="inline-flex items-center rounded-full bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider shrink-0">
+                              List
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Right Side: Selected Audience Details & Contact Manager */}
+              <div className="md:col-span-2">
+                {selectedAudience ? (
+                  <div className="space-y-6">
+                    {/* Audience Header / Summary */}
+                    <Card className="glass-card">
+                      <CardHeader className="flex flex-row items-start justify-between space-y-0">
+                        <div>
+                          <CardTitle className="text-xl flex items-center gap-2">
+                            <Users className="h-5 w-5 text-muted-foreground" />
+                            {selectedAudience.name}
+                          </CardTitle>
+                          <CardDescription className="mt-1">
+                            Audience ID: <code className="font-mono bg-muted/50 px-1 py-0.5 rounded text-foreground text-xs">{selectedAudience.id}</code>
+                          </CardDescription>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive hover:bg-destructive/15 hover:text-destructive border-destructive/20"
+                          onClick={() => deleteAudience(selectedAudience.id)}
+                          disabled={deletingAudienceId === selectedAudience.id}
+                        >
+                          {deletingAudienceId === selectedAudience.id ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Deleting...
+                            </>
+                          ) : (
+                            <>
+                              <Trash2 className="h-4 w-4 mr-2" /> Delete List
+                            </>
+                          )}
+                        </Button>
+                      </CardHeader>
+                    </Card>
+
+                    <div className="grid md:grid-cols-3 gap-6">
+                      {/* Add Contact Form (Left) */}
+                      <Card className="glass-card md:col-span-1 h-fit">
+                        <CardHeader>
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <UserPlus className="h-4 w-4 text-primary" /> Add Contact
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="contactEmail">Email Address</Label>
+                            <Input
+                              id="contactEmail"
+                              type="email"
+                              placeholder="subscriber@domain.com"
+                              value={newContactEmail}
+                              onChange={(e) => setNewContactEmail(e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="contactFirstName">First Name</Label>
+                            <Input
+                              id="contactFirstName"
+                              placeholder="Optional"
+                              value={newContactFirstName}
+                              onChange={(e) => setNewContactFirstName(e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="contactLastName">Last Name</Label>
+                            <Input
+                              id="contactLastName"
+                              placeholder="Optional"
+                              value={newContactLastName}
+                              onChange={(e) => setNewContactLastName(e.target.value)}
+                            />
+                          </div>
+                          <label className="flex items-center gap-2.5 p-2 rounded-md border border-border/30 hover:bg-muted/20 cursor-pointer transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={newContactUnsubscribed}
+                              onChange={(e) => setNewContactUnsubscribed(e.target.checked)}
+                              className="rounded border-muted bg-background text-primary focus:ring-primary focus:ring-offset-background"
+                            />
+                            <div>
+                              <p className="text-xs font-semibold">Unsubscribed</p>
+                              <p className="text-[10px] text-muted-foreground">Opt out from receiving emails</p>
+                            </div>
+                          </label>
+                          <Button onClick={createContact} disabled={addingContact} className="w-full">
+                            {addingContact ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Adding...
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="h-4 w-4 mr-2" /> Add Contact
+                              </>
+                            )}
+                          </Button>
+                        </CardContent>
+                      </Card>
+
+                      {/* Contacts Table / List (Right) */}
+                      <Card className="glass-card md:col-span-2">
+                        <CardHeader className="flex flex-row items-center justify-between pb-3">
+                          <CardTitle className="text-base">Contacts ({contacts.length})</CardTitle>
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Search email..."
+                              value={contactSearchQuery}
+                              onChange={(e) => setContactSearchQuery(e.target.value)}
+                              className="max-w-[150px] h-8 text-xs bg-background/50"
+                            />
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => fetchContacts(selectedAudience.id)}>
+                              <RefreshCw className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                          {fetchingContacts ? (
+                            <div className="py-12 flex flex-col items-center justify-center text-muted-foreground gap-2">
+                              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                              <p className="text-xs">Loading contacts...</p>
+                            </div>
+                          ) : contacts.length === 0 ? (
+                            <p className="text-xs text-muted-foreground p-6 text-center border-t border-border/40">
+                              No contacts in this list. Use the form to add one.
+                            </p>
+                          ) : (
+                            <div className="border-t border-border/40 overflow-hidden bg-background/50 text-xs">
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                  <thead>
+                                    <tr className="border-b border-border bg-muted/40 font-medium text-muted-foreground">
+                                      <th className="py-2.5 px-3">Email</th>
+                                      <th className="py-2.5 px-3">Name</th>
+                                      <th className="py-2.5 px-3">Status</th>
+                                      <th className="py-2.5 px-3 text-right">Action</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {contacts
+                                      .filter((c) =>
+                                        c.email.toLowerCase().includes(contactSearchQuery.toLowerCase()) ||
+                                        (c.firstName && c.firstName.toLowerCase().includes(contactSearchQuery.toLowerCase())) ||
+                                        (c.lastName && c.lastName.toLowerCase().includes(contactSearchQuery.toLowerCase()))
+                                      )
+                                      .map((c) => (
+                                        <tr key={c.id} className="border-b border-border/40 last:border-0 hover:bg-muted/20">
+                                          <td className="py-3 px-3 font-mono font-medium">{c.email}</td>
+                                          <td className="py-3 px-3">
+                                            {c.firstName || c.lastName
+                                              ? `${c.firstName || ""} ${c.lastName || ""}`.trim()
+                                              : <span className="text-muted-foreground italic">No Name</span>}
+                                          </td>
+                                          <td className="py-3 px-3">
+                                            <span
+                                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium border uppercase tracking-wider ${
+                                                c.unsubscribed
+                                                  ? "bg-yellow-500/15 text-yellow-500 border-yellow-500/30"
+                                                  : "bg-green-500/15 text-green-500 border-green-500/30"
+                                              }`}
+                                            >
+                                              {c.unsubscribed ? "Unsubscribed" : "Subscribed"}
+                                            </span>
+                                          </td>
+                                          <td className="py-3 px-3 text-right">
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-7 w-7 text-destructive hover:bg-destructive/15 hover:text-destructive"
+                                              onClick={() => deleteContact(c.id)}
+                                              disabled={deletingContactId === c.id}
+                                            >
+                                              {deletingContactId === c.id ? (
+                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                              ) : (
+                                                <UserMinus className="h-3.5 w-3.5" />
+                                              )}
+                                            </Button>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+                ) : (
+                  <Card className="glass-card h-full flex flex-col items-center justify-center p-12 text-center text-muted-foreground border-dashed">
+                    <Users className="h-12 w-12 text-muted-foreground/30 mb-4" />
+                    <CardTitle className="text-base font-medium">No Audience Selected</CardTitle>
+                    <p className="text-sm mt-1 max-w-sm">
+                      Select an audience from the list to view its subscriber details, filter contacts, and add or remove members.
                     </p>
                   </Card>
                 )}
