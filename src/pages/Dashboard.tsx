@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Mail, Key, LogOut, Copy, Plus, Trash2, Send, RefreshCw, BookOpen, Globe, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Mail, Key, LogOut, Copy, Plus, Trash2, Send, RefreshCw, BookOpen, Globe, CheckCircle2, AlertCircle, Loader2, Radio } from "lucide-react";
 import { Logo } from "@/components/Logo";
 
 interface ApiKey {
@@ -40,6 +40,14 @@ interface DkimToken {
   type: string;
 }
 
+interface WebhookItem {
+  id: string;
+  url: string;
+  secret: string;
+  events: string[];
+  created_at: string;
+}
+
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5033";
 
 export default function Dashboard() {
@@ -67,6 +75,14 @@ export default function Dashboard() {
   const [fetchingDkim, setFetchingDkim] = useState(false);
   const [checkingVerify, setCheckingVerify] = useState(false);
 
+  // Webhook states
+  const [webhooks, setWebhooks] = useState<WebhookItem[]>([]);
+  const [newWebhookUrl, setNewWebhookUrl] = useState("");
+  const [selectedWebhookEvents, setSelectedWebhookEvents] = useState<string[]>(["email.sent", "email.failed"]);
+  const [addingWebhook, setAddingWebhook] = useState(false);
+  const [selectedWebhook, setSelectedWebhook] = useState<WebhookItem | null>(null);
+  const [deletingWebhookId, setDeletingWebhookId] = useState<string | null>(null);
+
   useEffect(() => {
     if (user) {
       setProfile({
@@ -76,8 +92,105 @@ export default function Dashboard() {
       fetchApiKeys();
       fetchEmails();
       fetchDomains();
+      fetchWebhooks();
     }
   }, [user]);
+
+  const fetchWebhooks = async () => {
+    if (!session?.access_token) return;
+    try {
+      const res = await fetch(`${API_URL}/v1/webhooks`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to fetch webhooks");
+      const data = await res.json();
+      const mapped = (data.data || []).map((w: any) => ({
+        id: w.id,
+        url: w.url,
+        secret: w.secret,
+        events: w.events || [],
+        created_at: w.createdAt,
+      }));
+      setWebhooks(mapped);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load webhooks");
+    }
+  };
+
+  const createWebhook = async () => {
+    if (!newWebhookUrl) {
+      toast.error("Webhook endpoint URL is required");
+      return;
+    }
+    const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([\/\w .-]*)*\/?$/;
+    if (!urlRegex.test(newWebhookUrl)) {
+      toast.error("Please enter a valid URL (e.g. https://yourdomain.com/webhook)");
+      return;
+    }
+    if (selectedWebhookEvents.length === 0) {
+      toast.error("Please select at least one event subscription");
+      return;
+    }
+
+    if (!session?.access_token) return;
+    setAddingWebhook(true);
+    try {
+      const res = await fetch(`${API_URL}/v1/webhooks`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          Url: newWebhookUrl,
+          Events: selectedWebhookEvents,
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.Message || errData.message || "Failed to create webhook");
+      }
+      toast.success("Webhook endpoint successfully registered!");
+      setNewWebhookUrl("");
+      setSelectedWebhookEvents(["email.sent", "email.failed"]);
+      fetchWebhooks();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to register webhook");
+    } finally {
+      setAddingWebhook(false);
+    }
+  };
+
+  const deleteWebhook = async (id: string) => {
+    if (!session?.access_token) return;
+    setDeletingWebhookId(id);
+    try {
+      const res = await fetch(`${API_URL}/v1/webhooks/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to delete webhook");
+      toast.success("Webhook revoked successfully!");
+      if (selectedWebhook?.id === id) {
+        setSelectedWebhook(null);
+      }
+      fetchWebhooks();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete webhook");
+    } finally {
+      setDeletingWebhookId(null);
+    }
+  };
+
+  const toggleWebhookEventSelection = (event: string) => {
+    setSelectedWebhookEvents(prev => 
+      prev.includes(event) ? prev.filter(e => e !== event) : [...prev, event]
+    );
+  };
 
   const fetchDomains = async () => {
     if (!session?.access_token) return;
@@ -404,12 +517,15 @@ export default function Dashboard() {
         </div>
 
         <Tabs defaultValue="keys" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="keys">
               <Key className="h-4 w-4 mr-2" /> API Keys
             </TabsTrigger>
             <TabsTrigger value="domains">
               <Globe className="h-4 w-4 mr-2" /> Domains
+            </TabsTrigger>
+            <TabsTrigger value="webhooks">
+              <Radio className="h-4 w-4 mr-2" /> Webhooks
             </TabsTrigger>
             <TabsTrigger value="logs">
               <Mail className="h-4 w-4 mr-2" /> Email Logs
@@ -755,6 +871,220 @@ export default function Dashboard() {
             </div>
           </TabsContent>
 
+          {/* Webhooks Tab */}
+          <TabsContent value="webhooks" className="space-y-6">
+            <div className="grid md:grid-cols-3 gap-6">
+              {/* Left Side: Register and List Webhooks */}
+              <div className="md:col-span-1 space-y-4">
+                <Card className="glass-card">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Add Webhook Endpoint</CardTitle>
+                    <CardDescription>Receive real-time notifications for email events</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="webhookUrl">Endpoint URL</Label>
+                      <Input
+                        id="webhookUrl"
+                        placeholder="https://api.yourdomain.com/webhooks"
+                        value={newWebhookUrl}
+                        onChange={(e) => setNewWebhookUrl(e.target.value)}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Event Subscriptions</Label>
+                      <div className="space-y-2 pt-1">
+                        {[
+                          { id: "email.sent", label: "email.sent", desc: "Sent successfully" },
+                          { id: "email.failed", label: "email.failed", desc: "Delivery failed" },
+                          { id: "email.opened", label: "email.opened", desc: "Recipient opened (coming soon)" },
+                          { id: "email.clicked", label: "email.clicked", desc: "Recipient clicked (coming soon)" }
+                        ].map((evt) => (
+                          <label
+                            key={evt.id}
+                            className={`flex items-start gap-3 p-2 rounded-md border border-border/30 hover:bg-muted/30 cursor-pointer transition-colors ${
+                              selectedWebhookEvents.includes(evt.id) ? "bg-primary/5 border-primary/30" : ""
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedWebhookEvents.includes(evt.id)}
+                              onChange={() => toggleWebhookEventSelection(evt.id)}
+                              className="mt-1 rounded border-muted bg-background text-primary focus:ring-primary focus:ring-offset-background"
+                            />
+                            <div>
+                              <p className="text-xs font-semibold">{evt.label}</p>
+                              <p className="text-[10px] text-muted-foreground">{evt.desc}</p>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <Button onClick={createWebhook} disabled={addingWebhook} className="w-full">
+                      {addingWebhook ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Registering...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-4 w-4 mr-2" /> Register Endpoint
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="glass-card">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                    <CardTitle className="text-lg">Your Webhooks</CardTitle>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={fetchWebhooks}>
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    </Button>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {webhooks.length === 0 ? (
+                      <p className="text-muted-foreground text-sm p-6 text-center">No webhook endpoints registered yet.</p>
+                    ) : (
+                      <div className="divide-y divide-border/40">
+                        {webhooks.map((wh) => (
+                          <button
+                            key={wh.id}
+                            onClick={() => setSelectedWebhook(wh)}
+                            className={`w-full text-left p-4 transition-colors flex items-center justify-between hover:bg-muted/30 ${
+                              selectedWebhook?.id === wh.id ? "bg-muted/50 border-r-2 border-primary" : ""
+                            }`}
+                          >
+                            <div className="min-w-0 pr-2">
+                              <p className="font-medium text-sm truncate">{wh.url}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {wh.events.length} event{wh.events.length === 1 ? "" : "s"} subscribed
+                              </p>
+                            </div>
+                            <span className="inline-flex items-center rounded-full bg-green-500/15 text-green-500 border border-green-500/30 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider shrink-0">
+                              Active
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Right Side: Selected Webhook Details */}
+              <div className="md:col-span-2">
+                {selectedWebhook ? (
+                  <Card className="glass-card">
+                    <CardHeader className="flex flex-row items-start justify-between space-y-0">
+                      <div>
+                        <CardTitle className="text-xl flex items-center gap-2">
+                          <Radio className="h-5 w-5 text-muted-foreground" />
+                          Webhook Details
+                        </CardTitle>
+                        <CardDescription className="mt-1 break-all">
+                          {selectedWebhook.url}
+                        </CardDescription>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive hover:bg-destructive/15 hover:text-destructive border-destructive/20"
+                        onClick={() => deleteWebhook(selectedWebhook.id)}
+                        disabled={deletingWebhookId === selectedWebhook.id}
+                      >
+                        {deletingWebhookId === selectedWebhook.id ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Revoking...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="h-4 w-4 mr-2" /> Revoke Endpoint
+                          </>
+                        )}
+                      </Button>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      {/* Details Summary */}
+                      <div className="grid grid-cols-2 gap-4 rounded-lg border border-border/40 p-4 bg-muted/20">
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Status</p>
+                          <p className="text-sm font-semibold text-green-500 mt-0.5">Active</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Created At</p>
+                          <p className="text-sm font-semibold mt-0.5">
+                            {new Date(selectedWebhook.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Signing Secret */}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold">Signing Secret Key</Label>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          This secret is used to sign webhook payloads. You should verify incoming signatures using the <code className="font-mono bg-muted px-1 py-0.5 rounded text-primary">svk-signature</code> header to ensure requests originate from Senviok.
+                        </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <code className="flex-1 bg-card rounded px-3 py-2 text-sm font-mono break-all border border-border">
+                            {selectedWebhook.secret}
+                          </code>
+                          <Button size="sm" variant="outline" onClick={() => copyToClipboard(selectedWebhook.secret)}>
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Subscribed Events */}
+                      <div className="space-y-3 pt-4 border-t border-border/45">
+                        <h4 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">Subscribed Events</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedWebhook.events.map((evt) => (
+                            <span
+                              key={evt}
+                              className="inline-flex items-center rounded-full bg-primary/10 text-primary border border-primary/20 px-3 py-1 text-xs font-semibold font-mono"
+                            >
+                              {evt}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Developer Verification Guidance */}
+                      <div className="space-y-3 pt-4 border-t border-border/45">
+                        <h4 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">Signature Verification Example</h4>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          We compute a HMAC SHA256 hex signature using your signing secret key and the raw request body. You can verify it in your backend like this:
+                        </p>
+                        <pre className="bg-card rounded-lg p-4 text-xs font-mono border border-border/50 overflow-x-auto text-muted-foreground leading-relaxed">
+{`// NodeJS Example
+const crypto = require('crypto');
+
+function verifyWebhook(requestBody, signatureHeader, signingSecret) {
+  const hmac = crypto.createHmac('sha256', signingSecret);
+  const digest = hmac.update(requestBody).digest('hex');
+  return crypto.timingSafeEqual(
+    Buffer.from(digest),
+    Buffer.from(signatureHeader)
+  );
+}`}
+                        </pre>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card className="glass-card h-full flex flex-col items-center justify-center p-12 text-center text-muted-foreground border-dashed">
+                    <Radio className="h-12 w-12 text-muted-foreground/30 mb-4 animate-pulse" />
+                    <CardTitle className="text-base font-medium">No Endpoint Selected</CardTitle>
+                    <p className="text-sm mt-1 max-w-sm">
+                      Select a webhook endpoint from the list to view its signing secret, subscribed events, and developer implementation details.
+                    </p>
+                  </Card>
+                )}
+              </div>
+            </div>
+          </TabsContent>
           {/* Email Logs Tab */}
           <TabsContent value="logs">
             <Card className="glass-card">
