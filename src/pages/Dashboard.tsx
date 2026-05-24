@@ -76,7 +76,7 @@ interface ContactItem {
   created_at: string;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5033";
+const API_URL = import.meta.env.VITE_API_URL || "https://api.senviok.live";
 
 export default function Dashboard() {
   const { user, session, signOut } = useAuth();
@@ -742,7 +742,8 @@ export default function Dashboard() {
       <div className="container mx-auto px-4 py-8 max-w-5xl">
         <div className="flex items-end justify-between flex-wrap gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold">
+            <p className="text-sm text-primary font-medium">Welcome back, {user?.name || "Developer"}</p>
+            <h1 className="text-3xl font-bold mt-1">
               {profile?.startup_name ? `${profile.startup_name}'s Workspace` : "Dashboard"}
             </h1>
             {profile?.startup_slug && (

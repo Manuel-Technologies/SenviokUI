@@ -11,7 +11,7 @@ import { ArrowLeft, Copy, LogOut } from "lucide-react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5033";
+const API_URL = import.meta.env.VITE_API_URL || "https://api.senviok.live";
 const ENDPOINT = `${API_URL}/v1/emails`;
 
 const langMap: Record<string, string> = {

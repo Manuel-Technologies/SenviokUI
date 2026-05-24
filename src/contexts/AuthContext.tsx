@@ -17,14 +17,14 @@ interface AuthContextType {
   session: Session | null;
   user: User | null;
   loading: boolean;
-  signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, name: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5033";
+const API_URL = import.meta.env.VITE_API_URL || "https://api.senviok.live";
 
 function decodeJwt(token: string): any {
   try {
@@ -79,9 +79,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initializeAuth();
   }, []);
 
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (email: string, password: string, name: string) => {
     try {
-      const name = email.split("@")[0];
       const res = await fetch(`${API_URL}/v1/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

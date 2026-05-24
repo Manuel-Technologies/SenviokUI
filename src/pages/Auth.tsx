@@ -11,6 +11,7 @@ import { Logo } from "@/components/Logo";
 
 export default function Auth() {
   const [isSignUp, setIsSignUp] = useState(false);
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -44,7 +45,7 @@ export default function Auth() {
         setLoading(true);
         const toastId = toast.loading("Authenticating with GitHub...");
         try {
-          const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5033";
+          const API_URL = import.meta.env.VITE_API_URL || "https://api.senviok.live";
           const res = await fetch(`${API_URL}/v1/auth/github/callback`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -83,7 +84,7 @@ export default function Auth() {
     setLoading(true);
 
     const { error } = isSignUp
-      ? await signUp(email, password)
+      ? await signUp(email, password, name)
       : await signIn(email, password);
 
     if (error) {
@@ -122,6 +123,19 @@ export default function Auth() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {isSignUp && (
+                <div className="space-y-2">
+                  <Label htmlFor="auth-name">Your Name</Label>
+                  <Input
+                    id="auth-name"
+                    type="text"
+                    placeholder="John Doe"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required={isSignUp}
+                  />
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="auth-email">Email Address</Label>
                 <Input
