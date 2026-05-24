@@ -48,6 +48,18 @@ interface WebhookItem {
   created_at: string;
 }
 
+interface WebhookDeliveryItem {
+  id: string;
+  webhookId: string;
+  eventId: string;
+  eventType: string;
+  attempt: number;
+  statusCode: number;
+  responseBody: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+}
+
 interface AudienceItem {
   id: string;
   name: string;
@@ -98,6 +110,8 @@ export default function Dashboard() {
   const [addingWebhook, setAddingWebhook] = useState(false);
   const [selectedWebhook, setSelectedWebhook] = useState<WebhookItem | null>(null);
   const [deletingWebhookId, setDeletingWebhookId] = useState<string | null>(null);
+  const [webhookDeliveries, setWebhookDeliveries] = useState<WebhookDeliveryItem[]>([]);
+  const [fetchingDeliveries, setFetchingDeliveries] = useState(false);
 
   // Audience & Contact states
   const [audiences, setAudiences] = useState<AudienceItem[]>([]);
@@ -218,6 +232,31 @@ export default function Dashboard() {
     } finally {
       setDeletingWebhookId(null);
     }
+  };
+
+  const fetchWebhookDeliveries = async (webhookId: string) => {
+    if (!session?.access_token) return;
+    setFetchingDeliveries(true);
+    try {
+      const res = await fetch(`${API_URL}/v1/webhooks/${webhookId}/deliveries`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to fetch webhook delivery logs");
+      const data = await res.json();
+      setWebhookDeliveries(data.data || []);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load webhook delivery logs");
+    } finally {
+      setFetchingDeliveries(false);
+    }
+  };
+
+  const handleSelectWebhook = (webhook: WebhookItem) => {
+    setSelectedWebhook(webhook);
+    setWebhookDeliveries([]);
+    fetchWebhookDeliveries(webhook.id);
   };
 
   const toggleWebhookEventSelection = (event: string) => {
@@ -1172,7 +1211,7 @@ export default function Dashboard() {
                         {webhooks.map((wh) => (
                           <button
                             key={wh.id}
-                            onClick={() => setSelectedWebhook(wh)}
+                            onClick={() => handleSelectWebhook(wh)}
                             className={`w-full text-left p-4 transition-colors flex items-center justify-between hover:bg-muted/30 ${
                               selectedWebhook?.id === wh.id ? "bg-muted/50 border-r-2 border-primary" : ""
                             }`}
@@ -1291,6 +1330,89 @@ function verifyWebhook(requestBody, signatureHeader, signingSecret) {
   );
 }`}
                         </pre>
+                      </div>
+
+                      {/* Webhook Delivery Logs Section */}
+                      <div className="space-y-4 pt-6 border-t border-border/45">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">Recent Deliveries</h4>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => fetchWebhookDeliveries(selectedWebhook.id)}
+                            disabled={fetchingDeliveries}
+                            className="h-7 px-2 text-xs"
+                          >
+                            <RefreshCw className={`h-3 w-3 mr-1 ${fetchingDeliveries ? "animate-spin" : ""}`} /> Refresh Logs
+                          </Button>
+                        </div>
+
+                        {fetchingDeliveries && webhookDeliveries.length === 0 ? (
+                          <div className="flex items-center justify-center p-8">
+                            <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                          </div>
+                        ) : webhookDeliveries.length === 0 ? (
+                          <p className="text-xs text-muted-foreground text-center p-6 border border-dashed border-border/50 rounded-lg">
+                            No delivery attempts logged yet. Send a test email to trigger events.
+                          </p>
+                        ) : (
+                          <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1 font-sans">
+                            {webhookDeliveries.map((delivery) => {
+                              const isSuccess = delivery.statusCode >= 200 && delivery.statusCode < 300;
+                              const isException = delivery.statusCode === -1;
+                              
+                              return (
+                                <div key={delivery.id} className="border border-border/40 rounded-lg bg-muted/10 overflow-hidden">
+                                  {/* Summary row */}
+                                  <div className="p-3 flex items-center justify-between text-xs font-mono bg-muted/20">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
+                                        isSuccess 
+                                          ? "bg-green-500/15 text-green-500 border-green-500/30" 
+                                          : isException
+                                          ? "bg-amber-500/15 text-amber-500 border-amber-500/30"
+                                          : "bg-red-500/15 text-red-500 border-red-500/30"
+                                      }`}>
+                                        {isException ? "ERR" : delivery.statusCode}
+                                      </span>
+                                      <span className="font-semibold text-foreground/80">{delivery.eventType}</span>
+                                    </div>
+                                    <div className="text-muted-foreground text-[10px] flex items-center gap-2">
+                                      <span>Attempt {delivery.attempt}</span>
+                                      <span>{new Date(delivery.createdAt).toLocaleTimeString()}</span>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Error or Response Details */}
+                                  <div className="p-3 text-[11px] font-mono space-y-1 bg-background/50 border-t border-border/20">
+                                    <div className="flex justify-between text-muted-foreground">
+                                      <span>Event ID:</span>
+                                      <span className="text-foreground/75 truncate max-w-[180px]">{delivery.eventId}</span>
+                                    </div>
+                                    
+                                    {delivery.errorMessage && (
+                                      <div className="pt-1.5">
+                                        <span className="text-red-400 font-semibold block mb-0.5">Error:</span>
+                                        <pre className="p-2 rounded bg-red-500/5 border border-red-500/10 text-red-300 overflow-x-auto whitespace-pre-wrap break-all text-[10px] leading-normal">
+                                          {delivery.errorMessage}
+                                        </pre>
+                                      </div>
+                                    )}
+
+                                    {delivery.responseBody && (
+                                      <div className="pt-1.5">
+                                        <span className="text-muted-foreground block mb-0.5">Response:</span>
+                                        <pre className="p-2 rounded bg-muted/30 border border-border/40 text-foreground/80 overflow-x-auto whitespace-pre-wrap break-all text-[10px] max-h-[120px] overflow-y-auto leading-normal">
+                                          {delivery.responseBody}
+                                        </pre>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
