@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Mail, Key, LogOut, Copy, Plus, Trash2, Send, RefreshCw, BookOpen, Globe, CheckCircle2, AlertCircle, Loader2, Radio, Users, UserMinus, UserPlus } from "lucide-react";
+import { Mail, Key, LogOut, Copy, Plus, Trash2, Send, RefreshCw, BookOpen, Globe, CheckCircle2, AlertCircle, Loader2, Radio, Users, UserMinus, UserPlus, TrendingUp } from "lucide-react";
 import { Logo } from "@/components/Logo";
 
 interface ApiKey {
@@ -686,6 +686,9 @@ export default function Dashboard() {
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
           <Logo size="sm" />
           <div className="flex items-center gap-3">
+            <Button variant="outline" size="sm" onClick={() => navigate("/updates")}>
+              <TrendingUp className="h-4 w-4 mr-2" /> Why Senviok
+            </Button>
             <Button variant="outline" size="sm" onClick={() => navigate("/docs")}>
               <BookOpen className="h-4 w-4 mr-2" /> API Docs
             </Button>

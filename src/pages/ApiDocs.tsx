@@ -18,9 +18,12 @@ const langMap: Record<string, string> = {
   curl: "bash",
   js: "javascript",
   ts: "typescript",
+  csharp: "csharp",
   python: "python",
   go: "go",
   rust: "rust",
+  php: "php",
+  ruby: "ruby",
 };
 
 const highlighterStyle = {
@@ -139,6 +142,41 @@ await sendEmail("${apiKeyPlaceholder}", {
   subject: "Welcome",
   html: "<h1>Hello!</h1>",
 });`,
+    csharp: `// C# (.NET HttpClient)
+using System;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+
+public class SenviokClient
+{
+    private static readonly HttpClient client = new HttpClient();
+
+    public static async Task SendEmailAsync()
+    {
+        var payload = new
+        {
+            to = "user@example.com",
+            from = "noreply@${tenantSlug}.senviok.email",
+            subject = "Welcome to Senviok",
+            html = "<h1>Hello!</h1><p>Sent via Senviok C# HttpClient.</p>"
+        };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "${ENDPOINT}");
+        request.Headers.Add("Authorization", "Bearer ${apiKeyPlaceholder}");
+        request.Content = new StringContent(
+            JsonSerializer.Serialize(payload),
+            Encoding.UTF8,
+            "application/json"
+        );
+
+        var response = await client.SendAsync(request);
+        string responseString = await response.Content.ReadAsStringAsync();
+        Console.WriteLine($"Status: {response.StatusCode}");
+        Console.WriteLine($"Body: {responseString}");
+    }
+}`,
     python: `# Python (requests)
 import requests
 
@@ -187,7 +225,7 @@ func main() {
 	defer resp.Body.Close()
 
 	fmt.Println("status:", resp.Status)
-	}`,
+}`,
     rust: `// Rust (reqwest + tokio)
 use reqwest::Client;
 use serde_json::json;
@@ -211,15 +249,62 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("body: {}", res.text().await?);
     Ok(())
 }`,
+    php: `// PHP (Guzzle HTTP Client)
+<?php
+require 'vendor/autoload.php';
+
+use GuzzleHttp\\Client;
+
+$client = new Client();
+$response = $client->post('${ENDPOINT}', [
+    'headers' => [
+        'Authorization' => 'Bearer ${apiKeyPlaceholder}',
+        'Content-Type' => 'application/json',
+    ],
+    'json' => [
+        'to' => 'user@example.com',
+        'from' => 'noreply@${tenantSlug}.senviok.email',
+        'subject' => 'Welcome to Senviok',
+        'html' => '<h1>Hello!</h1><p>Sent via Guzzle.</p>',
+    ]
+]);
+
+echo $response->getBody();`,
+    ruby: `# Ruby (Net::HTTP)
+require 'net/http'
+require 'uri'
+require 'json'
+
+uri = URI.parse("${ENDPOINT}")
+header = {
+  'Content-Type' => 'application/json',
+  'Authorization' => 'Bearer ${apiKeyPlaceholder}'
+}
+payload = {
+  to: "user@example.com",
+  from: "noreply@${tenantSlug}.senviok.email",
+  subject: "Welcome to Senviok",
+  html: "<h1>Hello!</h1>"
+}
+
+http = Net::HTTP.new(uri.host, uri.port)
+request = Net::HTTP::Post.new(uri.request_uri, header)
+request.body = payload.to_json
+
+response = http.request(request)
+puts "Response #{response.code}: #{response.body}"`,
   };
 
   const tabs: { value: string; label: string }[] = [
     { value: "curl", label: "cURL" },
     { value: "js", label: "JavaScript" },
     { value: "ts", label: "TypeScript" },
+    { value: "csharp", label: "C# (.NET)" },
     { value: "python", label: "Python" },
     { value: "go", label: "Go" },
     { value: "rust", label: "Rust" },
+    { value: "php", label: "PHP" },
+    { value: "ruby", label: "Ruby" },
   ];
 
   return (
@@ -331,7 +416,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="curl">
-              <TabsList className="grid grid-cols-3 md:grid-cols-6 w-full">
+              <TabsList className="grid grid-cols-3 md:grid-cols-9 w-full">
                 {tabs.map((t) => (
                   <TabsTrigger key={t.value} value={t.value}>{t.label}</TabsTrigger>
                 ))}
@@ -404,6 +489,104 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                   <tr><td className="py-2 px-2 font-mono">500</td><td className="font-mono text-xs">server_error</td><td>Internal error — retry with backoff</td></tr>
                 </tbody>
               </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="glass-card">
+          <CardHeader>
+            <CardTitle>Webhooks</CardTitle>
+            <CardDescription>Receive real-time HTTPS callbacks for message delivery events</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Senviok can send POST payloads to your registered endpoints when messages are processed. Webhook callbacks include security signatures and timestamps to allow verification of origin.
+            </p>
+
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">Supported Events</h4>
+              <ul className="list-disc pl-5 text-sm space-y-1 text-muted-foreground">
+                <li><code className="font-mono text-primary text-xs">message.sent</code>: Triggered immediately when an email or SMS is successfully dispatched.</li>
+                <li><code className="font-mono text-primary text-xs">message.failed</code>: Triggered when email/SMS transmission fails after provider retries.</li>
+              </ul>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <h4 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">Webhook HTTP Headers</h4>
+              <p className="text-xs text-muted-foreground">Every webhook request contains the following headers:</p>
+              <div className="overflow-x-auto text-xs">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/40 font-medium text-muted-foreground">
+                      <th className="py-2 px-2">Header Name</th>
+                      <th className="py-2 px-2">Description / Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-border/50"><td className="py-2 px-2 font-mono font-semibold text-primary">svk-signature</td><td className="font-sans">HMAC SHA256 signature computed using your webhook signing secret key and the raw JSON request body</td></tr>
+                    <tr className="border-b border-border/50"><td className="py-2 px-2 font-mono font-semibold text-primary">svk-event-id</td><td className="font-sans">The unique identifier of the event callback</td></tr>
+                    <tr className="border-b border-border/50"><td className="py-2 px-2 font-mono font-semibold text-primary">svk-timestamp</td><td className="font-sans">Unix epoch timestamp (seconds) indicating when the webhook was dispatched</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <h4 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">Example Event Payload</h4>
+              <div className="bg-[#1e1e1e] border border-border rounded-lg overflow-hidden">
+                <SyntaxHighlighter
+                  language="json"
+                  style={highlighterStyle}
+                  customStyle={{ padding: "1rem", margin: 0, background: "transparent" }}
+                >
+                  {`{
+  "eventId": "evt_47cba8b1e92d41ba95e0",
+  "tenantId": "${tenantSlug}",
+  "eventType": "message.sent",
+  "createdAt": "${new Date().toISOString()}",
+  "data": {
+    "messageId": "msg_89f074d2eb349a...",
+    "providerMessageId": "ses-a9f82-29fa3-10d...",
+    "channel": "Email",
+    "status": "Sent"
+  }
+}`}
+                </SyntaxHighlighter>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <h4 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">Verify Signatures (C# example)</h4>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                To guarantee webhooks originate from Senviok, compute the SHA256 HMAC of the raw request payload using your signing secret key and compare it to the <code className="font-mono bg-muted px-1 rounded text-primary">svk-signature</code> header:
+              </p>
+              <div className="bg-[#1e1e1e] border border-border rounded-lg overflow-hidden">
+                <SyntaxHighlighter
+                  language="csharp"
+                  style={highlighterStyle}
+                  customStyle={{ padding: "1rem", margin: 0, background: "transparent" }}
+                >
+                  {`using System.Security.Cryptography;
+using System.Text;
+
+public static bool VerifyWebhookSignature(string rawJsonBody, string signatureHeader, string signingSecret)
+{
+    var keyBytes = Encoding.UTF8.GetBytes(signingSecret);
+    var payloadBytes = Encoding.UTF8.GetBytes(rawJsonBody);
+
+    using var hmac = new HMACSHA256(keyBytes);
+    var hashBytes = hmac.ComputeHash(payloadBytes);
+    
+    // Convert hash bytes to a lower-case hexadecimal string
+    var computedSignature = Convert.ToHexString(hashBytes).ToLowerInvariant();
+
+    return CryptographicOperations.FixedTimeEquals(
+        Encoding.UTF8.GetBytes(computedSignature),
+        Encoding.UTF8.GetBytes(signatureHeader)
+    );
+}`}
+                </SyntaxHighlighter>
+              </div>
             </div>
           </CardContent>
         </Card>

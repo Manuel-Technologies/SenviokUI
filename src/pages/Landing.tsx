@@ -139,6 +139,7 @@ var response = await client.Emails.SendAsync(new EmailRequest
             <a href="#lifecycle" className="hover:text-foreground transition-colors font-medium">How it Works</a>
             <a href="#code-quickstart" className="hover:text-foreground transition-colors font-medium">Developer SDKs</a>
             <a href="#metrics" className="hover:text-foreground transition-colors font-medium">System Status</a>
+            <Link to="/updates" className="hover:text-foreground transition-colors font-medium">Why Senviok</Link>
           </div>
           <div>
             {user ? (
@@ -538,6 +539,10 @@ var response = await client.Emails.SendAsync(new EmailRequest
       <footer className="relative border-t border-border/50 py-10" role="contentinfo">
         <div className="container mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
           <Logo size="sm" />
+          <div className="flex gap-6 text-sm text-muted-foreground">
+            <Link to="/updates" className="hover:text-foreground transition-colors">Why Senviok / Updates</Link>
+            <Link to="/docs" className="hover:text-foreground transition-colors">API Docs</Link>
+          </div>
           <div className="text-sm text-muted-foreground">© 2026 Senviok. Infrastructure built for developers.</div>
         </div>
       </footer>
