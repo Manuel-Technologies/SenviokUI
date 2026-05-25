@@ -78,6 +78,13 @@ interface ContactItem {
 
 const API_URL = import.meta.env.VITE_API_URL || "https://api.senviok.live";
 
+const generateSlug = (name: string) => {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "") || "onboarding";
+};
+
 export default function Dashboard() {
   const { user, session, signOut } = useAuth();
   const navigate = useNavigate();
@@ -681,7 +688,7 @@ export default function Dashboard() {
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          from: `noreply@${user.tenantId}.senviok.email`,
+          from: `noreply@${generateSlug(profile?.startup_name || "Workspace")}.mail.senviok.live`,
           fromName: "Test Sender",
           to: testTo,
           subject: testSubject,
@@ -759,13 +766,13 @@ export default function Dashboard() {
                 <div>
                   <p className="text-xs text-muted-foreground uppercase tracking-wide">Sending address</p>
                   <code className="font-mono text-sm text-primary">
-                    noreply@{profile.startup_slug}.senviok.email
+                    noreply@{generateSlug(profile.startup_name || "Workspace")}.mail.senviok.live
                   </code>
                 </div>
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => copyToClipboard(`noreply@${profile.startup_slug}.senviok.email`)}
+                  onClick={() => copyToClipboard(`noreply@${generateSlug(profile.startup_name || "Workspace")}.mail.senviok.live`)}
                 >
                   <Copy className="h-4 w-4" />
                 </Button>

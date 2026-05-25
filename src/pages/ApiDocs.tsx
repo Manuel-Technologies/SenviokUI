@@ -14,6 +14,13 @@ import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 const API_URL = import.meta.env.VITE_API_URL || "https://api.senviok.live";
 const ENDPOINT = `${API_URL}/v1/emails`;
 
+const generateSlug = (name: string) => {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "") || "your-startup";
+};
+
 const langMap: Record<string, string> = {
   curl: "bash",
   js: "javascript",
@@ -50,7 +57,7 @@ export default function ApiDocs() {
 
   useEffect(() => {
     if (user) {
-      setTenantSlug(user.tenantId);
+      setTenantSlug(generateSlug(user.name || "your-startup"));
       (async () => {
         if (!session?.access_token) return;
         try {
@@ -85,7 +92,7 @@ export default function ApiDocs() {
   -H "Content-Type: application/json" \\
   -d '{
     "to": "user@example.com",
-    "from": "noreply@${tenantSlug}.senviok.email",
+    "from": "noreply@${tenantSlug}.mail.senviok.live",
     "subject": "Welcome to Senviok",
     "html": "<h1>Hello!</h1><p>Sent via Senviok.</p>"
   }'`,
@@ -98,7 +105,7 @@ const res = await fetch("${ENDPOINT}", {
   },
   body: JSON.stringify({
     to: "user@example.com",
-    from: "noreply@${tenantSlug}.senviok.email",
+    from: "noreply@${tenantSlug}.mail.senviok.live",
     subject: "Welcome to Senviok",
     html: "<h1>Hello!</h1><p>Sent via Senviok.</p>",
   }),
@@ -158,7 +165,7 @@ public class SenviokClient
         var payload = new
         {
             to = "user@example.com",
-            from = "noreply@${tenantSlug}.senviok.email",
+            from = "noreply@${tenantSlug}.mail.senviok.live",
             subject = "Welcome to Senviok",
             html = "<h1>Hello!</h1><p>Sent via Senviok C# HttpClient.</p>"
         };
@@ -188,7 +195,7 @@ resp = requests.post(
     },
     json={
         "to": "user@example.com",
-        "from": "noreply@${tenantSlug}.senviok.email",
+        "from": "noreply@${tenantSlug}.mail.senviok.live",
         "subject": "Welcome to Senviok",
         "html": "<h1>Hello!</h1><p>Sent via Senviok.</p>",
     },
@@ -209,7 +216,7 @@ import (
 func main() {
 	payload, _ := json.Marshal(map[string]string{
 		"to":      "user@example.com",
-		"from":    "noreply@${tenantSlug}.senviok.email",
+		"from":    "noreply@${tenantSlug}.mail.senviok.live",
 		"subject": "Welcome to Senviok",
 		"html":    "<h1>Hello!</h1>",
 	})
@@ -238,7 +245,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .bearer_auth("${apiKeyPlaceholder}")
         .json(&json!({
             "to": "user@example.com",
-            "from": "noreply@${tenantSlug}.senviok.email",
+            "from": "noreply@${tenantSlug}.mail.senviok.live",
             "subject": "Welcome to Senviok",
             "html": "<h1>Hello!</h1>"
         }))
@@ -263,7 +270,7 @@ $response = $client->post('${ENDPOINT}', [
     ],
     'json' => [
         'to' => 'user@example.com',
-        'from' => 'noreply@${tenantSlug}.senviok.email',
+        'from' => 'noreply@${tenantSlug}.mail.senviok.live',
         'subject' => 'Welcome to Senviok',
         'html' => '<h1>Hello!</h1><p>Sent via Guzzle.</p>',
     ]
@@ -282,7 +289,7 @@ header = {
 }
 payload = {
   to: "user@example.com",
-  from: "noreply@${tenantSlug}.senviok.email",
+  from: "noreply@${tenantSlug}.mail.senviok.live",
   subject: "Welcome to Senviok",
   html: "<h1>Hello!</h1>"
 }
@@ -366,16 +373,16 @@ puts "Response #{response.code}: #{response.body}"`,
             <div className="flex items-center gap-2">
               <Badge className="bg-primary/15 text-primary border border-primary/30 hover:bg-primary/15">FROM</Badge>
               <code className="flex-1 bg-muted/50 rounded px-3 py-2 text-sm font-mono break-all border border-border">
-                noreply@{tenantSlug}.senviok.email
+                noreply@{tenantSlug}.mail.senviok.live
               </code>
-              <Button size="sm" variant="outline" onClick={() => copy(`noreply@${tenantSlug}.senviok.email`)}>
+              <Button size="sm" variant="outline" onClick={() => copy(`noreply@${tenantSlug}.mail.senviok.live`)}>
                 <Copy className="h-4 w-4" />
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
               You can override <code className="font-mono">from</code> with any address on{" "}
-              <code className="font-mono">@{tenantSlug}.senviok.email</code> (e.g.{" "}
-              <code className="font-mono">support@{tenantSlug}.senviok.email</code>). Other domains are rejected.
+              <code className="font-mono">@{tenantSlug}.mail.senviok.live</code> (e.g.{" "}
+              <code className="font-mono">support@{tenantSlug}.mail.senviok.live</code>). Other domains are rejected.
             </p>
           </CardContent>
         </Card>
