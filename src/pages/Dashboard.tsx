@@ -76,6 +76,13 @@ interface ContactItem {
   created_at: string;
 }
 
+interface SenderItem {
+  id: string;
+  email: string;
+  verificationStatus: string;
+  created_at: string;
+}
+
 const API_URL = import.meta.env.VITE_API_URL || "https://api.senviok.live";
 
 const generateSlug = (name: string) => {
@@ -137,6 +144,11 @@ export default function Dashboard() {
   const [contactSearchQuery, setContactSearchQuery] = useState("");
   const [fetchingContacts, setFetchingContacts] = useState(false);
 
+  // Sender states
+  const [senders, setSenders] = useState<SenderItem[]>([]);
+  const [newSenderEmail, setNewSenderEmail] = useState("");
+  const [addingSender, setAddingSender] = useState(false);
+
   useEffect(() => {
     if (user) {
       setProfile({
@@ -148,6 +160,7 @@ export default function Dashboard() {
       fetchDomains();
       fetchWebhooks();
       fetchAudiences();
+      fetchSenders();
     }
   }, [user]);
 
@@ -257,6 +270,82 @@ export default function Dashboard() {
       toast.error(err.message || "Failed to load webhook delivery logs");
     } finally {
       setFetchingDeliveries(false);
+    }
+  };
+
+  const fetchSenders = async () => {
+    if (!session?.access_token) return;
+    try {
+      const res = await fetch(`${API_URL}/v1/sender-emails`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to fetch verified senders");
+      const data = await res.json();
+      const mapped = (data.data || []).map((s: any) => ({
+        id: s.id,
+        email: s.email,
+        verificationStatus: s.verificationStatus,
+        created_at: s.createdAt,
+      }));
+      setSenders(mapped);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load verified senders");
+    }
+  };
+
+  const createSender = async () => {
+    if (!newSenderEmail) {
+      toast.error("Sender email address is required");
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newSenderEmail)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+    if (!session?.access_token) return;
+    setAddingSender(true);
+    try {
+      const res = await fetch(`${API_URL}/v1/sender-emails`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          Email: newSenderEmail,
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.Message || errData.message || "Failed to add sender");
+      }
+      toast.success("Verification email sent! Please check your inbox.");
+      setNewSenderEmail("");
+      fetchSenders();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add sender");
+    } finally {
+      setAddingSender(false);
+    }
+  };
+
+  const deleteSender = async (id: string) => {
+    if (!session?.access_token) return;
+    try {
+      const res = await fetch(`${API_URL}/v1/sender-emails/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to delete sender email");
+      fetchSenders();
+      toast.success("Sender email deleted");
+    } catch (err: any) {
+      toast.error(err.message);
     }
   };
 
@@ -782,12 +871,15 @@ export default function Dashboard() {
         </div>
 
         <Tabs defaultValue="keys" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="keys">
               <Key className="h-4 w-4 mr-2" /> API Keys
             </TabsTrigger>
             <TabsTrigger value="domains">
               <Globe className="h-4 w-4 mr-2" /> Domains
+            </TabsTrigger>
+            <TabsTrigger value="senders">
+              <CheckCircle2 className="h-4 w-4 mr-2" /> Senders
             </TabsTrigger>
             <TabsTrigger value="webhooks">
               <Radio className="h-4 w-4 mr-2" /> Webhooks
@@ -1135,6 +1227,98 @@ export default function Dashboard() {
                     </p>
                   </Card>
                 )}
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Senders Tab */}
+          <TabsContent value="senders" className="space-y-6">
+            <div className="grid md:grid-cols-3 gap-6">
+              {/* Left Side: Add Sender Email */}
+              <div className="md:col-span-1 space-y-4">
+                <Card className="glass-card">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Add Single Sender</CardTitle>
+                    <CardDescription>Verify an individual email address to start sending</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="senderEmail">Email Address</Label>
+                      <Input
+                        id="senderEmail"
+                        type="email"
+                        placeholder="e.g. developer@company.com"
+                        value={newSenderEmail}
+                        onChange={(e) => setNewSenderEmail(e.target.value)}
+                      />
+                    </div>
+                    <Button onClick={createSender} disabled={addingSender} className="w-full">
+                      {addingSender ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Adding...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-4 w-4 mr-2" /> Add Sender
+                        </>
+                      )}
+                    </Button>
+                    <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                      We will send a verification email with a link. Once you click it, you can send from this address.
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Right Side: List Senders */}
+              <div className="md:col-span-2">
+                <Card className="glass-card">
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle>Verified Senders</CardTitle>
+                      <CardDescription>
+                        Manage your verified single sender addresses. Single senders are rate-limited to 50 emails/day.
+                      </CardDescription>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={fetchSenders}>
+                      <RefreshCw className="h-4 w-4 mr-2" /> Refresh
+                    </Button>
+                  </CardHeader>
+                  <CardContent>
+                    {senders.length === 0 ? (
+                      <div className="text-center py-12 text-muted-foreground">
+                        <Mail className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+                        <p className="text-sm font-medium">No verified senders yet</p>
+                        <p className="text-xs mt-1">Add your personal or company email on the left to get started.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {senders.map((s) => (
+                          <div key={s.id} className="flex items-center justify-between py-3 px-4 rounded-lg bg-muted/30 border border-border/50">
+                            <div>
+                              <p className="font-semibold text-sm">{s.email}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${
+                                  s.verificationStatus.toLowerCase() === "verified"
+                                    ? "bg-green-500/10 text-green-400 border-green-500/25"
+                                    : "bg-yellow-500/10 text-yellow-400 border-yellow-500/25"
+                                }`}>
+                                  {s.verificationStatus}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  Added {new Date(s.created_at).toLocaleDateString()}
+                                </span>
+                              </div>
+                            </div>
+                            <Button variant="ghost" size="sm" onClick={() => deleteSender(s.id)} className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
             </div>
           </TabsContent>
